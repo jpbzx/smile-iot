@@ -1,0 +1,54 @@
+# PlatformIO
+.pio
+.pioenvs
+.piolibdeps
+build/
+dist/
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+.env/
+.venv/
+venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Build & Compilation
+*.o
+*.a
+*.so
+*.elf
+*.bin
+*.hex
+
+# OS
+.DS_Store
+Thumbs.db
+.directory
+
+# Logs & Temporary files
+*.log
+*.tmp
+*.bak
+
+# Dependencies (keep lock file)
+lib/
+!lib/README
+
+# Generated files
+.pio/
