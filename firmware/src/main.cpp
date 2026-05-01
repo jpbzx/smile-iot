@@ -2,19 +2,12 @@
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <EmonLib.h>
 
-/*
-TODO:
-    - Connect to Wifi; [establish network link]
-    - Define the Host; [sprecify ip addr or url to broker]
-    - Connect to the Port; [Open socket (1883 for MQTT)]
-    - Write Data;
-*/
-
-/*
-To test connectivity, attach a btn to turn on the built-in led and send 
-a message saying "on" or "off" and then display it on the dashboard
-*/
+//Energy monitoring
+//sct-013-000 neededs a burden resis 33ohm -> calib = 60.6
+//sct-013-030 no burnden resisteor needed -> calib = 30
+const double calib = 30;
 
 // wifi config
 const char *ssid = "João Bessa";
@@ -22,19 +15,21 @@ const char *pwd = "tassemnet";
 
 // MQTT
 const char *mqtt_broker = "broker.emqx.io";
-const char *topic = "pesta/isep";
+const char *topic = "smile-iot/power";
 const char *username = "1211189";
 const char *usr_pwd = "isep";
 const int port = 1883;
 
 // Built-in LED pin on ESP32-DevKit
 #define LED_PIN 2
+#define SCT_PIN 34 //sct-013 -> gpio 34
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+EnergyMonitor emon;
 
 /*
-Might be usefull to have in some commands need to be sent to the esp or smth investigate later
+Might be usefull to have to send commands to the esp or smth, investigate later
 
 //callback function to receive mqtt messages
 void callback(char *topic, byte *payload, unsigned int length) {
@@ -49,10 +44,13 @@ void callback(char *topic, byte *payload, unsigned int length) {
 }
 */
 
-void setup() {
-    //serial port
-    Serial.begin(115200);
+double get_Irms() {
+    //I_rms calculations
+    double I_rms = emon.calcIrms(2500); //arg -> number of samples
+    return I_rms;
+}
 
+void wifi_connection() {
     // connecting to wifi
     WiFi.begin(ssid, pwd);
     while (WiFi.status() != WL_CONNECTED) {
@@ -60,6 +58,17 @@ void setup() {
         Serial.println("Connecting to wifi... make sure network is available\n");
     }
     Serial.println("Connected!");
+}
+
+void setup() {
+    //serial port
+    Serial.begin(115200);
+    
+    //Config adc pin and calib
+    emon.current(SCT_PIN, calib);
+
+    //WIFI CONNECTION
+    wifi_connection();
 
     //mqtt connection
     client.setServer(mqtt_broker, port);
@@ -81,10 +90,13 @@ void setup() {
         }        
     }
 
-    client.publish(topic, "TEST MESSAGE!");
+    double current = get_Irms();
+    client.publish(topic, current);
     
     // Initialize the LED pin as an output
     pinMode(LED_PIN, OUTPUT);
+
+    
 }
 
 void loop() {
@@ -95,4 +107,6 @@ void loop() {
     // Turn LED off
     digitalWrite(LED_PIN, LOW);
     delay(1000);  // Wait 1 second
+
+    double current = get_Irms();
 }
