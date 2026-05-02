@@ -8,6 +8,7 @@
 //sct-013-000 neededs a burden resis 33ohm -> calib = 60.6
 //sct-013-030 no burnden resisteor needed -> calib = 30
 const double calib = 30;
+const double CURRENT_LIMIT = 15.0;  //15 Amps on most european houses
 
 // wifi config
 const char *ssid = "João Bessa";
@@ -20,49 +21,83 @@ const char *username = "1211189";
 const char *usr_pwd = "isep";
 const int port = 1883;
 
-// Built-in LED pin on ESP32-DevKit
-#define LED_PIN 2
+// PINOUT
+#define LED_PIN 2 // Built-in LED pin on ESP32-DevKit
 #define SCT_PIN 34 //sct-013 -> gpio 34
+#define RELAY_PIN 25  
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 EnergyMonitor emon;
 
-/*
-Might be usefull to have to send commands to the esp or smth, investigate later
+// Control variables
+unsigned long last_reading = 0;
+const long _delay = 1000; // um segundo
+bool relay_state = false; // Flase por default
 
-//callback function to receive mqtt messages
+// Callback para receber comandos do Dashboard (Streamlit)
 void callback(char *topic, byte *payload, unsigned int length) {
-    Serial.print("Message arrived in topic: ");
-    Serial.println(topic);
-    Serial.print("Message:");
+    String msg = "";
     for (int i = 0; i < length; i++) {
-        Serial.print((char) payload[i]);
+        msg += (char)payload[i];
     }
-    Serial.println();
-    Serial.println("-----------------------");
+    
+    Serial.printf("Received commad on topic -> %s: %s\n", topic, msg.c_str());
+
+    // Atualiza o estado do relay
+    if (msg == "ON") {
+        relay_state = true;
+        digitalWrite(RELAY_PIN, HIGH);
+        digitalWrite(LED_PIN, HIGH); // Feedback visual
+    } else if (msg == "OFF") {
+        relay_state = false;
+        digitalWrite(RELAY_PIN, LOW);
+        digitalWrite(LED_PIN, LOW);
+    }
 }
-*/
 
 double get_Irms() {
     //I_rms calculations
-    double I_rms = emon.calcIrms(2500); //arg -> number of samples
-    return I_rms;
+    return emon.calcIrms(2500); //arg -> number of samples
 }
 
 void wifi_connection() {
     // connecting to wifi
     WiFi.begin(ssid, pwd);
     while (WiFi.status() != WL_CONNECTED) {
-        delay(5000);
+        delay(1000);
         Serial.println("Connecting to wifi... make sure network is available\n");
     }
     Serial.println("Connected!");
 }
 
+void mqtt_reconnect() {
+    // Loop until connection
+    while (!client.connected()) {
+        String client_id = "esp32-1-";
+        client_id += String(WiFi.macAddress());
+        
+        Serial.printf("Connecting to a MQTT broker as: %s\n", client_id.c_str());
+        
+        if (client.connect(client_id.c_str(), username, usr_pwd)) {
+            Serial.println("LIGADO!");
+            // Subscrever ao tópico de comandos
+            client.subscribe(topic);
+        } else {
+            Serial.printf("Connection error. Error: %d. Trying again in 5s...\n", client.state());
+            delay(5000);
+        }        
+    }
+}
+
 void setup() {
     //serial port
     Serial.begin(115200);
+
+    // pin setup
+    pinMode(LED_PIN, OUTPUT);
+    pinMode(RELAY_PIN, OUTPUT);
+    digitalWrite(RELAY_PIN, LOW);
     
     //Config adc pin and calib
     emon.current(SCT_PIN, calib);
@@ -72,41 +107,40 @@ void setup() {
 
     //mqtt connection
     client.setServer(mqtt_broker, port);
-
     //to receive message uncomment this line
-    //client.setCallback(callback);
-
-    while (!client.connected()) {
-        String client_id = "esp32-Publisher";
-        client_id += String(WiFi.macAddress());
-
-        Serial.printf("this client is: %s", client_id.c_str());
-        
-        if (client.connect(client_id.c_str(), username, pwd)) {
-            Serial.println("Broker connected!");
-        } else {
-            Serial.printf("failed with state: %d", client.state());
-            delay(5000);
-        }        
-    }
-
-    double current = get_Irms();
-    client.publish(topic, current);
-    
-    // Initialize the LED pin as an output
-    pinMode(LED_PIN, OUTPUT);
-
-    
+    client.setCallback(callback);
 }
 
 void loop() {
-    // Turn LED on
-    digitalWrite(LED_PIN, HIGH);
-    delay(1000);  // Wait 1 second
-    
-    // Turn LED off
-    digitalWrite(LED_PIN, LOW);
-    delay(1000);  // Wait 1 second
 
-    double current = get_Irms();
+    if (!client.connected()) {
+        mqtt_reconnect();
+    }
+
+    client.loop(); //message processing & keep connection
+
+    unsigned long nowTimeStamp = millis();
+
+    if (nowTimeStamp - last_reading >= _delay) {
+        last_reading = nowTimeStamp;
+    }
+    
+    double current_Irms = get_Irms();
+
+    //safty logic
+    if (current_Irms > CURRENT_LIMIT && relay_state == true) {
+        relay_state = false;
+        digitalWrite(RELAY_PIN, LOW);
+        digitalWrite(LED_PIN, LOW);
+    }
+
+    StaticJsonDocument<200> doc;
+    doc["Current"] = current_Irms;
+    doc["Outlet state"] = relay_state ? "ON" : "OFF";
+
+    char jsonBuffer[256];
+    serializeJson(doc, jsonBuffer);
+
+    client.publish(topic, jsonBuffer);
+        
 }
