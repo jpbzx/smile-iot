@@ -17,6 +17,8 @@ const char *pwd = "tassemnet";
 // MQTT
 const char *mqtt_broker = "broker.emqx.io";
 const char *topic = "smile-iot/power";
+//topic to recieve commands
+const char *sub_topic = "smile-iot/command";
 const char *username = "1211189";
 const char *usr_pwd = "isep";
 const int port = 1883;
@@ -82,7 +84,7 @@ void mqtt_reconnect() {
         if (client.connect(client_id.c_str(), username, usr_pwd)) {
             Serial.println("LIGADO!");
             // Subscrever ao tópico de comandos
-            client.subscribe(topic);
+            client.subscribe(sub_topic);
         } else {
             Serial.printf("Connection error. Error: %d. Trying again in 5s...\n", client.state());
             delay(5000);
@@ -135,8 +137,8 @@ void loop() {
     }
 
     StaticJsonDocument<200> doc;
-    doc["Current"] = current_Irms;
-    doc["Outlet state"] = relay_state ? "ON" : "OFF";
+    doc["current"] = current_Irms;
+    doc["outlet_state"] = relay_state ? "ON" : "OFF";
 
     char jsonBuffer[256];
     serializeJson(doc, jsonBuffer);
