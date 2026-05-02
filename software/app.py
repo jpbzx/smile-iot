@@ -23,6 +23,7 @@ from utils.mqtt_client import (
     disconnect_mqtt,
     init_session_state,
     sync_mqtt,
+    publish_command,
 )
 
 # ---------------------------------------------------------------------------
@@ -171,6 +172,39 @@ with st.container(horizontal=True):
         f"€ {total_cost_today:.2f}",
         border=True,
     )
+
+st.markdown("---")
+col_info, col_ctrl = st.columns([2,1])
+
+with col_info:
+    st.subheader("Outlet State")
+    #shows the current state based on the last message received by the board
+    if "outlet_state" in latest:
+        state = latest["outlet_state"]
+        color = "green" if state == "ON" else "red"
+        st.markdown(f"Outlet: **{color}[{state}]**")
+    else:
+        st.info("Waiting for data")
+
+with col_ctrl:
+    st.subheader("Remote commands")
+    # we defined the reading topic in "power", so we replace it for the one defined on the board "command"
+    cmd_topic = mqtt_topic.replace("power", "command")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("TURN ON", use_container_width=True, type="primary", disabled=not st.session_state.mqtt_connected):
+            if publish_command(cmd_topic, "ON"):
+                st.toast(f"Command 'ON' sent successfuly", icon="⚡")
+            else:
+                st.error("Failed sending command")
+
+    with c2:
+        if st.button("TURN OFF", use_container_width=True, disabled=not st.session_state.mqtt_connected):
+            if publish_command(cmd_topic, "OFF"):
+                st.toast(f"Command 'OFF' sent successfuly", icon="🔌")
+            else:
+                st.error("Failed sending command")
 
 # ---------------------------------------------------------------------------
 # Realtime charts

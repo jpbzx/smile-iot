@@ -127,6 +127,22 @@ def disconnect_mqtt() -> None:
     _mqtt_conn_state["connected"] = False
     _mqtt_conn_state["error"] = ""
 
+def publish_command(topic: str, payload: str) -> bool:
+    """
+    Publish the command into the specified topic. 
+    Returns true if the command was send successfuly
+    """
+    client: mqtt.Client | None = st.session_state.get("mqtt_client")
+
+    if client is not None and st.session_state.mqtt_connected:
+        try:
+            result = client.publish(topic, payload, qos=1)
+            # result.rc == 0 means success
+            return result.rc == mqtt.MQTT_ERR_SUCCESS
+        except Exception as e:
+            st.error(f"Error publishing: {e}")
+            return False
+    return False
 
 # ---------------------------------------------------------------------------
 # Sync: thread boundary → session_state  (call at top of every rerun)
