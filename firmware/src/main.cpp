@@ -114,29 +114,26 @@ void setup() {
 }
 
 void loop() {
-
     if (!client.connected()) {
         mqtt_reconnect();
     }
-
     client.loop(); //message processing & keep connection
 
     unsigned long nowTimeStamp = millis();
-
     if (nowTimeStamp - last_reading >= _delay) {
         last_reading = nowTimeStamp;
     }
     
     double current_Irms = get_Irms();
-
     //safty logic
     if (current_Irms > CURRENT_LIMIT && relay_state == true) {
         relay_state = false;
         digitalWrite(RELAY_PIN, LOW);
         digitalWrite(LED_PIN, LOW);
     }
+    printf("CUrrent: %d", current_Irms);
 
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     doc["current"] = current_Irms;
     doc["outlet_state"] = relay_state ? "ON" : "OFF";
 
