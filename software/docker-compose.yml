@@ -26,5 +26,6 @@ services:
       - DOCKER_INFLUXDB_INIT_PASSWORD=password123
       - DOCKER_INFLUXDB_INIT_ORG=smile_org
       - DOCKER_INFLUXDB_INIT_BUCKET=energy_data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=smile-iot-super-secret-token
     volumes:
       - ./data/influx:/var/lib/influxdb2

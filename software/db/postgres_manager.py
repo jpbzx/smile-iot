@@ -10,6 +10,39 @@ DB_CONFIG = {
     "password": "password123"
 }
 
+def verify_login(username, password):
+    """Retorna um dic c/ os dados do utilizador ou None se der erro"""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        hashed_pw = hash_password(password)
+
+        cur.execute("""
+            SELECT id, username, role 
+            FROM utilizadores 
+            WHERE username = %s AND password_hash = %s
+        """, (username, hashed_pw))
+
+        user = cur.fetchone()
+
+        if user:
+            #encontrou o user -> return os dados 
+            return{
+                "id": user[0],
+                "username": user[1],
+                "role": user[2]
+            }
+        else:
+            return None
+        
+    except Exception as e:
+        print(f"Authentication error: {e}")
+        return None
+    finally:
+        cur.close()
+        conn.close()
+
 def hash_password(password: str) -> str:
     """Cria um hash da password para segurança"""
     return hashlib.sha256(password.encode()).hexdigest()
