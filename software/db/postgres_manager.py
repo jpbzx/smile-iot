@@ -62,6 +62,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS utilizadores (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
+                email VARCHAR(100) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
                 role VARCHAR(20) NOT NULL
             );
@@ -90,8 +91,8 @@ def init_db():
         cur.execute("SELECT * FROM utilizadores WHERE username = 'admin'")
         if cur.fetchone() is None:
             cur.execute(
-                "INSERT INTO utilizadores (username, password_hash, role) VALUES (%s, %s, %s)",
-                ('admin', hash_password('admin123'), 'admin')
+                "INSERT INTO utilizadores (username, email, password_hash, role) VALUES (%s, %s, %s)",
+                ('admin', '', hash_password('admin123'), 'admin')
             )
             print("🟢 Utilizador 'admin' criado com sucesso (password: 'admin123').")
 
