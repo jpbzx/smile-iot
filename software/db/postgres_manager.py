@@ -51,6 +51,44 @@ def get_connection():
     """Devolve uma ligação ativa à base de dados."""
     return psycopg2.connect(**DB_CONFIG)
 
+def add_user(username, email, password, role):
+    """Cria um novo utilizador no DB"""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            "INSERT INTO utilizadores (username, email, password_hash, role) VALUES (%s, %s, %s, %s)",
+            (username, email, hash_password(password), role)
+        )
+        conn.commit()
+        return True, "Utitilizador criado com sucesso!"
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
+        return False, "Erro: Username ou email ja existentes"
+    except Exception as e:
+        conn.rollback()
+        return False, f"Unnespected error: {e}"
+    
+def update_password(user_id, new_password):
+    """Atualizaa a password do user com o user_id"""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            "UPDATE utilizadores SET password_hash = %s WHERE id = %s",
+            (hash_password(new_password), user_id)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
 def init_db():
     """Cria as tabelas e o Admin user."""
     conn = get_connection()
