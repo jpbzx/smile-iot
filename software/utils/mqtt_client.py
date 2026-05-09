@@ -18,6 +18,8 @@ import streamlit as st
 
 from utils.simulated_data import MAX_BUFFER_SIZE
 
+from db.influx_manager import influx_db
+
 # ---------------------------------------------------------------------------
 # Module-level MQTT primitives (shared across threads via Python GIL)
 #
@@ -67,6 +69,18 @@ def _on_message(client: mqtt.Client, userdata: dict, msg: mqtt.MQTTMessage) -> N
         items = payload if isinstance(payload, list) else [payload]
         for item in items:
             _mqtt_queue.put_nowait(item)
+
+            #save data history to InfluxDB
+            try:
+                influx_db.save_energy_reading(
+                    current_a=item.get("current_A", 0.0),
+                    power_w=item.get("power_W", 0.0),
+                    voltage_v=item.get("voltage_V", 230.0),
+                    outlet_state=item.get("outlet_state", "UNKNOWN")
+                )
+            except Exception as e:
+                print(f"Error on InlfuxDB layer: {e}")
+
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
         pass  # Silently discard malformed messages
 

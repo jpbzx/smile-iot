@@ -1,4 +1,9 @@
 streamlit
-pandas
-numpy
 paho-mqtt
+pandas
+altair
+numpy
+psycopg2-binary
+influxdb-client
+jsonschema
+GitPython

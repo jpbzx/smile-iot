@@ -1,0 +1,31 @@
+services:
+  # Base de dados para Utilizadores e Permissões
+  postgres_db:
+    image: postgres:15
+    container_name: smile_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: smile_iot_users
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
+  # Base de dados para Histórico de Energia (Séries Temporais)
+  influx_db:
+    image: influxdb:2.7
+    container_name: smile_influx
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password123
+      - DOCKER_INFLUXDB_INIT_ORG=smile_org
+      - DOCKER_INFLUXDB_INIT_BUCKET=energy_data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=smile-iot-super-secret-token
+    volumes:
+      - ./data/influx:/var/lib/influxdb2
