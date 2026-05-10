@@ -12,6 +12,7 @@ if "logged_in" not in st.session_state:
 login_page = st.Page("views/login.py", title="Login")
 dashboard_page = st.Page("views/dashboard.py", title="Monitorização", icon="📊")
 admin_page = st.Page("views/admin_panel.py", title="Gestão do Sistema", icon="⚙️")
+profile_page = st.Page("views/profile.py", title="Profile", icon="👤")
 
 #Lógica de Navegação -> (Role-Based Access Control)
 if not st.session_state.logged_in:
@@ -28,10 +29,10 @@ else:
 
     #ADMIN, vê o dashboard e o painel de admin
     if st.session_state.user_info['role'] == 'admin':
-        pg = st.navigation([dashboard_page, admin_page])
+        pg = st.navigation([dashboard_page, admin_page, profile_page])
     #COMON USER, vê apenas o dashboard
     else:
-        pg = st.navigation([dashboard_page])
+        pg = st.navigation([dashboard_page, profile_page])
 
 #Executar a navegação
 pg.run()
