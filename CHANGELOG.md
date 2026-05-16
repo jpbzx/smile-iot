@@ -20,5 +20,9 @@ Todas as alterações relevantes neste repositório serão registadas neste fich
 	- `software/views/reset_password.py` — formulário de pedido de reset e formulário de definição de nova password via token.
 	- `software/app.py` — expõe a página de reset quando o utilizador não está autenticado.
 
+### 2026-05-16 — Update
+- Removida a página independente `software/views/reset_password.py` e integrado o fluxo de pedido de reset e uso de token diretamente na `software/views/login.py` para evitar navegação lateral e para melhorar UX e segurança.
+- Implementado cooldown por sessão para pedidos de reset e mensagens neutras para evitar user enumeration.
+
 
 
