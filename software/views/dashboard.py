@@ -120,6 +120,13 @@ rt_minutes = int(history_window.split()[0])
 if st.session_state.mqtt_connected and len(st.session_state.mqtt_messages) > 0:
     msgs = st.session_state.mqtt_messages[-rt_minutes:] # Usa apenas as mensagens da janela definida
     rt_df = pd.DataFrame(msgs)
+    # Normalize incoming message keys to expected column names
+    # Some firmware versions may send 'current' instead of 'current_A'
+    if "current" in rt_df.columns and "current_A" not in rt_df.columns:
+        rt_df["current_A"] = rt_df["current"]
+    # Also accept 'power' as an alias for 'power_W'
+    if "power" in rt_df.columns and "power_W" not in rt_df.columns:
+        rt_df["power_W"] = rt_df["power"]
     
     # If there's no timestampin the Json create on when receiving
     if "timestamp" not in rt_df.columns:
@@ -129,9 +136,13 @@ if st.session_state.mqtt_connected and len(st.session_state.mqtt_messages) > 0:
         
     # Calculate Power (P = V * I) - assuming 230V
     if "current_A" in rt_df.columns:
-        rt_df["power_W"] = rt_df["current_A"] * GRID_VOLTAGE
+        # if power_W was not provided, compute it
+        if "power_W" not in rt_df.columns:
+            rt_df["power_W"] = rt_df["current_A"] * GRID_VOLTAGE
     else:
-        rt_df["power_W"] = 0.0
+        rt_df["current_A"] = 0.0
+        if "power_W" not in rt_df.columns:
+            rt_df["power_W"] = 0.0
 else:
     rt_df = get_empty_rt_df()
 

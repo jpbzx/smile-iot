@@ -240,6 +240,50 @@ def create_password_reset_request(email: str, expires_minutes: int = 60):
         conn.close()
 
 
+def create_password_reset_request_for_username(username: str, provided_email: str, expires_minutes: int = 60):
+    """Generate a password reset token for the user identified by `username`.
+
+    The request is allowed only if `provided_email` matches the user's registered
+    email or matches the admin user's email. Returns (True, (token, target_email))
+    on success where `target_email` is the user's email address to which the
+    reset link should be sent. On failure returns (False, reason).
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, email FROM utilizadores WHERE username = %s", (username,))
+        row = cur.fetchone()
+        if row is None:
+            return False, "username_not_found"
+        user_id, user_email = row
+
+        # fetch admin email (if any) to allow admin-initiated requests
+        cur.execute("SELECT email FROM utilizadores WHERE username = 'admin' LIMIT 1")
+        admin_row = cur.fetchone()
+        admin_email = admin_row[0] if admin_row else None
+
+        # Allow only if provided_email matches the user's email or the admin email
+        if provided_email != user_email and (admin_email is None or provided_email != admin_email):
+            return False, "email_mismatch"
+
+        token = secrets.token_urlsafe(32)
+        expires = datetime.utcnow() + timedelta(minutes=expires_minutes)
+        cur.execute(
+            "INSERT INTO password_reset_tokens (user_id, token, expires_at, used) VALUES (%s, %s, %s, %s)",
+            (user_id, token, expires, False)
+        )
+        conn.commit()
+
+        # Always send the reset link to the user's registered email
+        return True, (token, user_email)
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally:
+        cur.close()
+        conn.close()
+
+
 def verify_reset_token(token: str):
     """Verify a reset token. Returns (True, user_id) if valid; otherwise (False, reason)."""
     conn = get_connection()

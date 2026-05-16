@@ -27,5 +27,9 @@ Todas as alterações relevantes neste repositório serão registadas neste fich
 ### 2026-05-16 — Fix
 - Corrigida referência inválida em `software/app.py` a `views/reset_password.py` (removida). A navegação de login agora mostra apenas `views/login.py` quando não autenticado.
 
+### 2026-05-16 — InfluxDB
+- Reescrito `software/db/influx_manager.py` para suportar configuração via variáveis de ambiente, gravação em background com batching, retries com exponential backoff e fallback para ficheiro offline (`./software/data/offline_influx_queue.jsonl`).
+- Adicionado snippet demonstrativo `software/db/tests/test_influx_manager.py` para validar comportamento offline.
+
 
 

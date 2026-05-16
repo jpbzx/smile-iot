@@ -1,6 +1,17 @@
 import os
 import time
 import streamlit as st
+from pathlib import Path
+
+# Load .env early (for SMTP, DB, and other config)
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).resolve().parent / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+except Exception:
+    # dotenv is optional in environments where env vars are already provided
+    pass
 
 #Configuração da Página geral
 st.set_page_config(page_title="SMILE-IoT", page_icon="⚡", layout="wide")
