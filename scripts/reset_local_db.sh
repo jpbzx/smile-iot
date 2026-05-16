@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOFTWARE_DIR="$REPO_ROOT/software"
+DOCKER_COMPOSE_FILE="$SOFTWARE_DIR/docker-compose.yml"
+VENV_PY="$SOFTWARE_DIR/.venv/bin/python"
+
+echo "[1/5] Stopping docker-compose services (if any)"
+docker-compose -f "$DOCKER_COMPOSE_FILE" down || true
+
+echo "[2/5] Removing local DB data directories (reset)"
+rm -rf "$SOFTWARE_DIR/data/postgres" "$SOFTWARE_DIR/data/influx" || true
+
+echo "[3/5] Starting docker-compose services"
+docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
+
+echo "[4/5] Waiting for Postgres to accept connections"
+MAX_ATTEMPTS=30
+SLEEP_SECONDS=2
+attempt=0
+while true; do
+  attempt=$((attempt+1))
+  if [ -x "$VENV_PY" ]; then
+    "$VENV_PY" - <<'PY'
+from software.db import postgres_manager as pm
+try:
+    conn = pm.get_connection()
+    conn.close()
+    print('PG_OK')
+except Exception as e:
+    raise SystemExit(1)
+PY
+    status=$?
+  else
+    # Fall back to system python3
+    python3 - <<'PY'
+from software.db import postgres_manager as pm
+try:
+    conn = pm.get_connection()
+    conn.close()
+    print('PG_OK')
+except Exception as e:
+    raise SystemExit(1)
+PY
+    status=$?
+  fi
+
+  if [ "$status" -eq 0 ]; then
+    echo "Postgres is ready"
+    break
+  fi
+
+  if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
+    echo "Timed out waiting for Postgres after $MAX_ATTEMPTS attempts"
+    exit 1
+  fi
+  echo "Waiting for Postgres... (attempt $attempt/$MAX_ATTEMPTS)"
+  sleep $SLEEP_SECONDS
+done
+
+echo "[5/5] Initializing DB schema via postgres_manager.init_db()"
+if [ -x "$VENV_PY" ]; then
+  "$VENV_PY" "$SOFTWARE_DIR/db/postgres_manager.py"
+else
+  python3 "$SOFTWARE_DIR/db/postgres_manager.py"
+fi
+
+echo "Done. DB reset and initialized."
