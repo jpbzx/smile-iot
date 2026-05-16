@@ -6,14 +6,24 @@ SOFTWARE_DIR="$REPO_ROOT/software"
 DOCKER_COMPOSE_FILE="$SOFTWARE_DIR/docker-compose.yml"
 VENV_PY="$SOFTWARE_DIR/.venv/bin/python"
 
+# Detect docker-compose command (support Docker Compose v1 and v2)
+if command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+else
+  echo "ERROR: neither 'docker-compose' nor 'docker compose' is available on PATH. Install Docker Compose or enable the Docker CLI plugin."
+  exit 2
+fi
+
 echo "[1/5] Stopping docker-compose services (if any)"
-docker-compose -f "$DOCKER_COMPOSE_FILE" down || true
+${COMPOSE_CMD} -f "$DOCKER_COMPOSE_FILE" down || true
 
 echo "[2/5] Removing local DB data directories (reset)"
-rm -rf "$SOFTWARE_DIR/data/postgres" "$SOFTWARE_DIR/data/influx" || true
+sudo rm -rf "$SOFTWARE_DIR/data/postgres" "$SOFTWARE_DIR/data/influx" || true
 
 echo "[3/5] Starting docker-compose services"
-docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
+${COMPOSE_CMD} -f "$DOCKER_COMPOSE_FILE" up -d
 
 echo "[4/5] Waiting for Postgres to accept connections"
 MAX_ATTEMPTS=30
