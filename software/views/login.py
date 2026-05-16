@@ -9,6 +9,7 @@ st.subheader("Access Authentication")
 # Initialize session state keys used for password reset flow
 st.session_state.setdefault("last_reset_request_at", 0)
 st.session_state.setdefault("reset_request_cooldown", 60)  # seconds
+st.session_state.setdefault("reset_requested", False)
 
 with st.form("login_form"):
     username = st.text_input("User")
@@ -53,24 +54,33 @@ with st.form("forgot_form"):
                 st.success("If the email exists in our system, a reset link has been sent.")
 
             st.session_state.last_reset_request_at = now
+            # Mark that a reset was requested in this session — only then show token form
+            st.session_state.reset_requested = True
 
 # -- Reset with token (user pastes token from email) --
-st.markdown("---")
-st.write("If you have a reset token, paste it below along with a new password.")
-with st.form("use_token_form"):
-    token = st.text_input("Reset token (from email)")
-    new_pw = st.text_input("New password", type="password")
-    new_pw2 = st.text_input("Confirm new password", type="password")
-    use_token_btn = st.form_submit_button("Reset password")
+if st.session_state.reset_requested:
+    st.markdown("---")
+    st.write("Paste the reset token you received by email and choose a new password.")
+    with st.form("use_token_form"):
+        token = st.text_input("Reset token (from email)")
+        new_pw = st.text_input("New password", type="password")
+        new_pw2 = st.text_input("Confirm new password", type="password")
+        use_token_btn = st.form_submit_button("Reset password")
 
-    if use_token_btn:
-        if not token or not new_pw or not new_pw2:
-            st.error("Please fill all fields")
-        elif new_pw != new_pw2:
-            st.error("Passwords do not match")
-        else:
-            ok, msg = reset_password_with_token(token, new_pw)
-            if ok:
-                st.success("Password updated. Please login with your new password.")
+        if use_token_btn:
+            if not token or not new_pw or not new_pw2:
+                st.error("Please fill all fields")
+            elif new_pw != new_pw2:
+                st.error("Passwords do not match")
             else:
-                st.error(f"Failed to reset password: {msg}")
+                ok, msg = reset_password_with_token(token, new_pw)
+                if ok:
+                    st.success("Password updated. Please login with your new password.")
+                    # clear the reset_requested flag after successful reset
+                    st.session_state.reset_requested = False
+                else:
+                    st.error(f"Failed to reset password: {msg}")
+else:
+    # Informative text when token form is not yet available
+    st.markdown("---")
+    st.info("To reset your password, first request a reset email above. After requesting, this page will show the token form.")
