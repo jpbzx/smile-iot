@@ -1,5 +1,5 @@
 import psycopg2
-import hashlib
+import bcrypt
 
 # Configurações de ligação ao Docker (match docker-compose.yml)
 DB_CONFIG = {
@@ -16,23 +16,25 @@ def verify_login(username, password):
     cur = conn.cursor()
 
     try:
-        hashed_pw = hash_password(password)
-
         cur.execute("""
-            SELECT id, username, role 
-            FROM utilizadores 
-            WHERE username = %s AND password_hash = %s
-        """, (username, hashed_pw))
+            SELECT id, username, role, password_hash
+            FROM utilizadores
+            WHERE username = %s
+        """, (username,))
 
         user = cur.fetchone()
 
         if user:
-            #encontrou o user -> return os dados 
-            return{
-                "id": user[0],
-                "username": user[1],
-                "role": user[2]
-            }
+            stored_hash = user[3]
+            # bcrypt stores the salt inside the hash; verify with checkpw
+            if bcrypt.checkpw(password.encode(), stored_hash.encode()):
+                return{
+                    "id": user[0],
+                    "username": user[1],
+                    "role": user[2]
+                }
+            else:
+                return None
         else:
             return None
         
@@ -45,7 +47,8 @@ def verify_login(username, password):
 
 def hash_password(password: str) -> str:
     """Cria um hash da password para segurança"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    # bcrypt.hashpw returns bytes; decode to store as text
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def get_connection():
     """Devolve uma ligação ativa à base de dados."""
