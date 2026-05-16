@@ -33,30 +33,26 @@ while true; do
   attempt=$((attempt+1))
     if [ -x "$VENV_PY" ]; then
     PYTHONPATH="$REPO_ROOT" "$VENV_PY" - <<'PY'
-  import sys
-  sys.path.insert(0, "$REPO_ROOT")
-  from software.db import postgres_manager as pm
-  try:
-    conn = pm.get_connection()
-    conn.close()
-    print('PG_OK')
-  except Exception:
-    raise SystemExit(1)
-  PY
+from software.db import postgres_manager as pm
+try:
+  conn = pm.get_connection()
+  conn.close()
+  print('PG_OK')
+except Exception:
+  raise SystemExit(1)
+PY
     status=$?
     else
     # Fall back to system python3
     PYTHONPATH="$REPO_ROOT" python3 - <<'PY'
-  import sys
-  sys.path.insert(0, "$REPO_ROOT")
-  from software.db import postgres_manager as pm
-  try:
-    conn = pm.get_connection()
-    conn.close()
-    print('PG_OK')
-  except Exception:
-    raise SystemExit(1)
-  PY
+from software.db import postgres_manager as pm
+try:
+  conn = pm.get_connection()
+  conn.close()
+  print('PG_OK')
+except Exception:
+  raise SystemExit(1)
+PY
     status=$?
   fi
 
