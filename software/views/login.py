@@ -1,5 +1,6 @@
 import streamlit as st
 from db.postgres_manager import verify_login
+import time
 
 st.title("SMILE-IoT")
 st.subheader("Access Authentication")
@@ -14,6 +15,7 @@ with st.form("login_form"):
         if user_data:
             st.session_state.logged_in = True
             st.session_state.user_info = user_data
+            st.session_state.last_active = time.time()
             st.rerun()
         else:
             st.error("Invalid Credencials! Try again")

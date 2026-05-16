@@ -1,5 +1,16 @@
 import streamlit as st
 from db.postgres_manager import add_user
+import time
+
+# Authentication + role guard
+if not st.session_state.get("logged_in"):
+    st.error("Authentication required. Please login.")
+    st.stop()
+elif st.session_state.user_info.get("role") != "admin":
+    st.error("Unauthorized: admin role required.")
+    st.stop()
+else:
+    st.session_state.last_active = time.time()
 
 st.title("⚙️ Painel de Administração")
 st.write("Bem-vindo ao centro de controlo. Apenas administradores podem ver esta página.")

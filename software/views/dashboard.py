@@ -51,6 +51,14 @@ st.set_page_config(
     layout="wide",
 )
 
+# Authentication guard
+if not st.session_state.get("logged_in"):
+    st.error("Authentication required. Please login.")
+    st.stop()
+else:
+    # refresh last activity timestamp
+    st.session_state.last_active = time.time()
+
 # ---------------------------------------------------------------------------
 # Boot sequence: init state → sync MQTT thread → ready
 # ---------------------------------------------------------------------------

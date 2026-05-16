@@ -1,5 +1,13 @@
 import streamlit as st
 from db.postgres_manager import update_password
+import time
+
+# Authentication guard
+if not st.session_state.get("logged_in"):
+    st.error("Authentication required. Please login.")
+    st.stop()
+else:
+    st.session_state.last_active = time.time()
 
 st.title("👤 My Projile")
 st.write(f"**Username:** {st.session_state.user_info['username']}")
