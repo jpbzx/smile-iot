@@ -21,6 +21,10 @@ DB_CONFIG = {
     "password": os.environ.get("DB_PASSWORD", "password123"),
 }
 
+# Lockout / rate-limiting configuration (environment-configurable)
+MAX_FAILED_ATTEMPTS = int(os.environ.get("MAX_FAILED_ATTEMPTS", 5))
+LOCKOUT_MINUTES = int(os.environ.get("LOCKOUT_MINUTES", 15))
+
 def verify_login(username, password):
     """Retorna um dic c/ os dados do utilizador ou None se der erro"""
     conn = get_connection()
@@ -28,7 +32,7 @@ def verify_login(username, password):
 
     try:
         cur.execute("""
-            SELECT id, username, role, password_hash
+            SELECT id, username, role, password_hash, failed_attempts, locked_until
             FROM utilizadores
             WHERE username = %s
         """, (username,))
@@ -36,17 +40,51 @@ def verify_login(username, password):
         user = cur.fetchone()
 
         if user:
-            stored_hash = user[3]
-            # bcrypt stores the salt inside the hash; verify with checkpw
-            if bcrypt.checkpw(password.encode(), stored_hash.encode()):
-                return{
-                    "id": user[0],
-                    "username": user[1],
-                    "role": user[2]
+            user_id, user_name, role, stored_hash, failed_attempts, locked_until = user
+
+            # Check for active lockout
+            if locked_until is not None:
+                try:
+                    now = datetime.utcnow()
+                    if now < locked_until:
+                        # still locked
+                        log_login_attempt(username, False, reason="locked")
+                        return None
+                except Exception:
+                    # If parsing locked_until fails, continue to verification
+                    pass
+
+            # Normalize stored_hash to bytes
+            if isinstance(stored_hash, bytes):
+                stored_hash_bytes = stored_hash
+            elif isinstance(stored_hash, memoryview):
+                stored_hash_bytes = stored_hash.tobytes()
+            else:
+                stored_hash_str = str(stored_hash).strip()
+                if stored_hash_str.startswith("b'") and stored_hash_str.endswith("'"):
+                    stored_hash_str = stored_hash_str[2:-1]
+                stored_hash_bytes = stored_hash_str.encode()
+
+            # Verify password
+            if bcrypt.checkpw(password.encode(), stored_hash_bytes):
+                reset_failed_attempts(username)
+                log_login_attempt(username, True, reason="success")
+                return {
+                    "id": user_id,
+                    "username": user_name,
+                    "role": role
                 }
             else:
+                new_fail_count = increment_failed_attempts(username)
+                reason = "invalid_password"
+                if new_fail_count is not None and new_fail_count >= MAX_FAILED_ATTEMPTS:
+                    set_lockout(username, LOCKOUT_MINUTES)
+                    reason = f"locked_after_{new_fail_count}"
+                log_login_attempt(username, False, reason=reason)
                 return None
         else:
+            # Unknown username — log for audit
+            log_login_attempt(username, False, reason="no_such_user")
             return None
         
     except Exception as e:
@@ -103,20 +141,91 @@ def update_password(user_id, new_password):
         cur.close()
         conn.close()
 
+
+def log_login_attempt(username, success: bool, reason: str = ""):
+    """Append a login attempt to the audit table login_logs."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO login_logs (username, success, reason, timestamp) VALUES (%s, %s, %s, %s)",
+            (username, success, reason, datetime.utcnow())
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def increment_failed_attempts(username):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE utilizadores SET failed_attempts = COALESCE(failed_attempts,0) + 1 WHERE username = %s RETURNING failed_attempts",
+            (username,)
+        )
+        res = cur.fetchone()
+        conn.commit()
+        return res[0] if res else None
+    except Exception:
+        conn.rollback()
+        return None
+    finally:
+        cur.close()
+        conn.close()
+
+
+def set_lockout(username, minutes: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        until = datetime.utcnow() + timedelta(minutes=minutes)
+        cur.execute(
+            "UPDATE utilizadores SET locked_until = %s WHERE username = %s",
+            (until, username)
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def reset_failed_attempts(username):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE utilizadores SET failed_attempts = 0, locked_until = NULL WHERE username = %s",
+            (username,)
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
 def init_db():
     """Cria as tabelas e o Admin user."""
     conn = get_connection()
     cur = conn.cursor()
 
     try:
-        # 1. Tabela de Utilizadores
+        # 1. Tabela de Utilizadores (com colunas para lockout)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS utilizadores (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 email VARCHAR(100) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
-                role VARCHAR(20) NOT NULL
+                role VARCHAR(20) NOT NULL,
+                failed_attempts INTEGER DEFAULT 0,
+                locked_until TIMESTAMP NULL
             );
         """)
 
@@ -147,6 +256,17 @@ def init_db():
                 ('admin', '', hash_password('admin123'), 'admin')
             )
             print("🟢 Utilizador 'admin' criado com sucesso (password: 'admin123').")
+
+        # Login logs table (audit trail)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS login_logs (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50),
+                success BOOLEAN,
+                reason TEXT,
+                timestamp TIMESTAMP NOT NULL
+            );
+        """)
 
         conn.commit()
         print("Base de dados PostgreSQL inicializada")
