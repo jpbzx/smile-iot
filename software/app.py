@@ -16,6 +16,7 @@ if "logged_in" not in st.session_state:
 
 #mapping pages (PATH PARA AS VIEWS!)
 login_page = st.Page("views/login.py", title="Login")
+reset_page = st.Page("views/reset_password.py", title="Reset Password")
 dashboard_page = st.Page("views/dashboard.py", title="Monitoring", icon="📊")
 admin_page = st.Page("views/admin_panel.py", title="System Management", icon="⚙️")
 profile_page = st.Page("views/profile.py", title="Profile", icon="👤")
@@ -32,8 +33,8 @@ if st.session_state.logged_in:
         st.session_state.last_active = None
 
 if not st.session_state.logged_in:
-    #se n houver login feito, a unica pagina é a do login
-    pg = st.navigation([login_page])
+    #se n houver login feito, mostramos login e reset password
+    pg = st.navigation([login_page, reset_page])
 else:
     # Sidebar global para utilizadores ja autenticados
     st.sidebar.write(f"Olá, **{st.session_state.user_info['username']}**")

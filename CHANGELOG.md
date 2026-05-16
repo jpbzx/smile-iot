@@ -15,4 +15,10 @@ Todas as alterações relevantes neste repositório serão registadas neste fich
 
 > Nota: alterações implementadas em ficheiros, sem commit automático — revisão necessária antes de commitar.
 
+### 2026-05-16 — UI
+- Adicionada UI de recuperação de password em Streamlit:
+	- `software/views/reset_password.py` — formulário de pedido de reset e formulário de definição de nova password via token.
+	- `software/app.py` — expõe a página de reset quando o utilizador não está autenticado.
+
+
 
