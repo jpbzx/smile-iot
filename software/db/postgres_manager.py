@@ -349,6 +349,17 @@ def init_db():
             );
         """)
 
+        # Password reset tokens table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES utilizadores(id) ON DELETE CASCADE,
+                token VARCHAR(255) UNIQUE NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used BOOLEAN DEFAULT FALSE
+            );
+        """)
+
         conn.commit()
         print("Base de dados PostgreSQL inicializada")
 
