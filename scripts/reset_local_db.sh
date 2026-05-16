@@ -31,28 +31,32 @@ SLEEP_SECONDS=2
 attempt=0
 while true; do
   attempt=$((attempt+1))
-  if [ -x "$VENV_PY" ]; then
-    "$VENV_PY" - <<'PY'
-from software.db import postgres_manager as pm
-try:
+    if [ -x "$VENV_PY" ]; then
+    PYTHONPATH="$REPO_ROOT" "$VENV_PY" - <<'PY'
+  import sys
+  sys.path.insert(0, "$REPO_ROOT")
+  from software.db import postgres_manager as pm
+  try:
     conn = pm.get_connection()
     conn.close()
     print('PG_OK')
-except Exception as e:
+  except Exception:
     raise SystemExit(1)
-PY
+  PY
     status=$?
-  else
+    else
     # Fall back to system python3
-    python3 - <<'PY'
-from software.db import postgres_manager as pm
-try:
+    PYTHONPATH="$REPO_ROOT" python3 - <<'PY'
+  import sys
+  sys.path.insert(0, "$REPO_ROOT")
+  from software.db import postgres_manager as pm
+  try:
     conn = pm.get_connection()
     conn.close()
     print('PG_OK')
-except Exception as e:
+  except Exception:
     raise SystemExit(1)
-PY
+  PY
     status=$?
   fi
 
