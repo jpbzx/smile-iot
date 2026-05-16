@@ -1,6 +1,6 @@
 # SMILE-IoT: Local Energy Monitoring and Inspection System via IoT
 
-**Última atualização:** Maio 5, 2026  
+**Última atualização:** Maio 16, 2026  
 **Ramo ativo:** `feature/docker-and-database`  
 **Versão:** Protótipo em desenvolvimento (v0.2-beta)
 
@@ -28,15 +28,18 @@ O sistema une competências de:
 ### Milestones Completados
 1. ✅ **Leitura de sensores SCT-013** (feature/SCT-013_implementation)
 2. ✅ **Transmissão MQTT com JSON** (firmware e backend)
-3. ✅ **Dashboard Streamlit** (interface web com gráficos em tempo real)
-4. ✅ **Integração PostgreSQL** (utilizadores e permissões)
+3. ✅ **Dashboard Streamlit (multi-page)** — views: `login`, `dashboard`, `admin`
+4. ✅ **Integração PostgreSQL** (utilizadores, colunas de email, gestão de passwords)
 5. ✅ **Integração InfluxDB** (série temporal de energia)
 6. ✅ **Orquestração Docker** (docker-compose para DB + Broker)
+7. ✅ **Database managers e configuração Docker** (scripts em `software/db/`)
+8. ✅ **Melhorias em utilitários MQTT** (`utils/mqtt_client.py` enhancements)
+9. ✅ **Funcionalidades de utilizador**: criação de utilizadores, atualização de password, página de perfil
 
 ### Milestones Em Desenvolvimento
-- 🟡 Inicializadores de base de dados (em testes)
-- 🟡 Persistência de dados históricos
-- 🟡 Autenticação/Autorização no Dashboard
+- 🟡 Inicializadores de base de dados (implementados; em testes de integração)
+- 🟡 Persistência de dados históricos (InfluxDB write pipeline em desenvolvimento)
+- 🟡 Autenticação/Autorização no Dashboard (integração de flows de login ainda a refinar)
 
 ### Milestones Planeados
 - ⭕ API REST completa
@@ -304,6 +307,17 @@ services:
 | 6c1d1e9 | Database implementation (init) | jpbzx | feature/docker |
 | cc7c1fb | Docker DB implementation | jpbzx | feature/docker |
 | 7a1176c | **Updated requirements.txt** | jpbzx | feature/docker-and-database |
+| 3f9fdd6 | [update] .gitignore | jpbzx | feature/docker-and-database |
+| adcc0ad | feat: add database managers and docker configuration | jpbzx | feature/docker-and-database |
+| 4dccf64 | refactor: migrate app to multi-page streamlit architecture | jpbzx | feature/docker-and-database |
+| 9caabb0 | feat: enhance MQTT client utilities | jpbzx | feature/docker-and-database |
+| 23a73ad | feat: add multi-page views (login, dashboard, admin) | jpbzx | feature/docker-and-database |
+| 16b5ea0 | docs: add system specification document | jpbzx | feature/docker-and-database |
+| 65ccd29 | Merge pull request #2 from jpbzx/feature/docker-and-database | João Bessa | main |
+| 9845844 | [dev] added an email column for the DB | jpbzx | main/feature/docker-and-database |
+| 689f294 | [dev] implementation of logic to add users and update passwords | jpbzx | main/feature/docker-and-database |
+| dac7dda | [dev] Profile page, update password, and user creation | jpbzx | feature/docker-and-database |
+| 3cfeb56 | [fix] pt -> eng% | jpbzx | feature/docker-and-database |
 
 ### Contribuidores
 - **jpbzx:** Desenvolvimento principal (hardware + firmware + software)
@@ -443,4 +457,4 @@ Este documento foi gerado como referência para IA e sistemas de análise (e.g.,
 - Debugging remoto
 - Code review assistido
 
-**Última atualização automática:** Maio 5, 2026, 14:30 UTC
+**Última atualização automática:** Maio 16, 2026, 14:30 UTC
