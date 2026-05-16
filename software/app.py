@@ -10,8 +10,8 @@ if "logged_in" not in st.session_state:
 
 #mapping pages (PATH PARA AS VIEWS!)
 login_page = st.Page("views/login.py", title="Login")
-dashboard_page = st.Page("views/dashboard.py", title="Monitorização", icon="📊")
-admin_page = st.Page("views/admin_panel.py", title="Gestão do Sistema", icon="⚙️")
+dashboard_page = st.Page("views/dashboard.py", title="Monitoring", icon="📊")
+admin_page = st.Page("views/admin_panel.py", title="System Management", icon="⚙️")
 profile_page = st.Page("views/profile.py", title="Profile", icon="👤")
 
 #Lógica de Navegação -> (Role-Based Access Control)
