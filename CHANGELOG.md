@@ -24,5 +24,8 @@ Todas as alterações relevantes neste repositório serão registadas neste fich
 - Removida a página independente `software/views/reset_password.py` e integrado o fluxo de pedido de reset e uso de token diretamente na `software/views/login.py` para evitar navegação lateral e para melhorar UX e segurança.
 - Implementado cooldown por sessão para pedidos de reset e mensagens neutras para evitar user enumeration.
 
+### 2026-05-16 — Fix
+- Corrigida referência inválida em `software/app.py` a `views/reset_password.py` (removida). A navegação de login agora mostra apenas `views/login.py` quando não autenticado.
+
 
 

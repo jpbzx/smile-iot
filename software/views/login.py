@@ -56,7 +56,7 @@ with st.form("forgot_form"):
 
 # -- Reset with token (user pastes token from email) --
 st.markdown("---")
-st.write("Have a reset token? Paste it below along with a new password.")
+st.write("If you have a reset token, paste it below along with a new password.")
 with st.form("use_token_form"):
     token = st.text_input("Reset token (from email)")
     new_pw = st.text_input("New password", type="password")
