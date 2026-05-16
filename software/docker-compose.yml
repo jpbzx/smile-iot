@@ -4,10 +4,11 @@ services:
     image: postgres:15
     container_name: smile_postgres
     restart: always
+    env_file: .env
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: smile_iot_users
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -20,12 +21,13 @@ services:
     restart: always
     ports:
       - "8086:8086"
+    env_file: .env
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=password123
-      - DOCKER_INFLUXDB_INIT_ORG=smile_org
-      - DOCKER_INFLUXDB_INIT_BUCKET=energy_data
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=smile-iot-super-secret-token
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_USER}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUX_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_ADMIN_TOKEN}
     volumes:
       - ./data/influx:/var/lib/influxdb2

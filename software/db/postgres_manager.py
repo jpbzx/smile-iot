@@ -1,13 +1,24 @@
+import os
 import psycopg2
 import bcrypt
+from pathlib import Path
+try:
+    from dotenv import load_dotenv
+    # Load .env from software/ when present (development only)
+    env_path = Path(__file__).resolve().parents[1] / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+except Exception:
+    # dotenv is optional in environments where env vars are already provided
+    pass
 
 # Configurações de ligação ao Docker (match docker-compose.yml)
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "smile_iot_users",
-    "user": "admin",
-    "password": "password123"
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "port": int(os.environ.get("DB_PORT", 5432)),
+    "dbname": os.environ.get("DB_NAME", "smile_iot_users"),
+    "user": os.environ.get("DB_USER", "admin"),
+    "password": os.environ.get("DB_PASSWORD", "password123"),
 }
 
 def verify_login(username, password):

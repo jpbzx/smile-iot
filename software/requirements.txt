@@ -7,3 +7,5 @@ psycopg2-binary
 influxdb-client
 jsonschema
 GitPython
+bcrypt
+python-dotenv
