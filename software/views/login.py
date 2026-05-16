@@ -82,5 +82,4 @@ if st.session_state.reset_requested:
                     st.error(f"Failed to reset password: {msg}")
 else:
     # Informative text when token form is not yet available
-    st.markdown("---")
     st.info("To reset your password, first request a reset email above. After requesting, this page will show the token form.")
