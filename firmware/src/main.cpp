@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <EmonLib.h>
@@ -34,8 +33,17 @@ EnergyMonitor emon;
 
 // Control variables
 unsigned long last_reading = 0;
-const long _delay = 1000; // um segundo
-bool relay_state = false; // Flase por default
+unsigned long last_precise_reading = 0;
+const long FAST_CHECK_INTERVAL = 1000;      // 1 segundo - check rápido
+const long PRECISE_READING_INTERVAL = 5000; // 5 segundos - leitura precisa (2500 amostras)
+const long MQTT_PUBLISH_INTERVAL = 5000;    // publica a cada 5s
+unsigned long last_publish = 0;
+
+bool relay_state = false; // False por default
+double last_current = 0.0;
+double precise_current = 0.0;  // Última leitura precisa (2500 amostras)
+double accumulated_current = 0.0;
+int reading_count = 0;
 
 // Callback para receber comandos do Dashboard (Streamlit)
 void callback(char *topic, byte *payload, unsigned int length) {
@@ -44,8 +52,6 @@ void callback(char *topic, byte *payload, unsigned int length) {
         msg += (char)payload[i];
     }
     
-    Serial.printf("Received commad on topic -> %s: %s\n", topic, msg.c_str());
-
     // Atualiza o estado do relay
     if (msg == "ON") {
         relay_state = true;
@@ -58,8 +64,14 @@ void callback(char *topic, byte *payload, unsigned int length) {
     }
 }
 
-double get_Irms() {
-    //I_rms calculations
+double get_Irms_fast() {
+    //I_rms calculations - 100 amostras para resposta rápida (~40ms)
+    return emon.calcIrms(100); //arg -> number of samples
+}
+
+double get_Irms_precise() {
+    //I_rms calculations - 2500 amostras para máxima precisão (~1s)
+    //Executa apenas a cada 5 segundos
     return emon.calcIrms(2500); //arg -> number of samples
 }
 
@@ -74,21 +86,24 @@ void wifi_connection() {
 }
 
 void mqtt_reconnect() {
-    // Loop until connection
-    while (!client.connected()) {
-        String client_id = "esp32-1-";
-        client_id += String(WiFi.macAddress());
-        
-        Serial.printf("Connecting to a MQTT broker as: %s\n", client_id.c_str());
-        
-        if (client.connect(client_id.c_str(), username, usr_pwd)) {
-            Serial.println("LIGADO!");
-            // Subscrever ao tópico de comandos
-            client.subscribe(sub_topic);
-        } else {
-            Serial.printf("Connection error. Error: %d. Trying again in 5s...\n", client.state());
-            delay(5000);
-        }        
+    // Não bloqueia com loop infinito - tenta apenas UMA vez por chamada
+    if (client.connected()) return;
+    
+    static unsigned long last_attempt = 0;
+    // Limita tentativas: não tenta a cada ms
+    if (millis() - last_attempt < 5000) return;
+    last_attempt = millis();
+    
+    String client_id = "esp32-1-";
+    client_id += String(WiFi.macAddress());
+    
+    Serial.printf("Connecting to MQTT broker as: %s\n", client_id.c_str());
+    
+    if (client.connect(client_id.c_str(), username, usr_pwd)) {
+        Serial.println("MQTT connected!");
+        client.subscribe(sub_topic);
+    } else {
+        Serial.printf("Connection error. Code: %d\n", client.state());
     }
 }
 
@@ -119,27 +134,62 @@ void loop() {
     }
     client.loop(); //message processing & keep connection
 
-    unsigned long nowTimeStamp = millis();
-    if (nowTimeStamp - last_reading >= _delay) {
-        last_reading = nowTimeStamp;
+    unsigned long now = millis();
+    
+    // ✅ 2a. LEITURA RÁPIDA a cada 1s - para segurança imediata
+    if (now - last_reading >= FAST_CHECK_INTERVAL) {
+        last_reading = now;
+        
+        double current_fast = get_Irms_fast();  // 100 amostras (~40ms)
+        last_current = current_fast;
+        
+        // Safety logic - sempre ativo, independente de MQTT
+        if (current_fast > CURRENT_LIMIT && relay_state == true) {
+            relay_state = false;
+            digitalWrite(RELAY_PIN, LOW);
+            digitalWrite(LED_PIN, LOW);
+            Serial.println("Safety: Relay disabled - overcurrent!");
+        }
+        
+        // Acumular para cálculo de média
+        accumulated_current += current_fast;
+        reading_count++;
     }
     
-    double current_Irms = get_Irms();
-    //safty logic
-    if (current_Irms > CURRENT_LIMIT && relay_state == true) {
-        relay_state = false;
-        digitalWrite(RELAY_PIN, LOW);
-        digitalWrite(LED_PIN, LOW);
+    // ✅ 2b. LEITURA PRECISA a cada 5s - qualidade máxima
+    // Executa em background sem bloquear porque é rara
+    if (now - last_precise_reading >= PRECISE_READING_INTERVAL) {
+        last_precise_reading = now;
+        precise_current = get_Irms_precise();  // 2500 amostras (~1s) - PRECISO!
+        Serial.printf("Precise reading: %.2f A\n", precise_current);
     }
-    printf("CUrrent: %d", current_Irms);
-
-    JsonDocument doc;
-    doc["current_A"] = current_Irms;
-    doc["outlet_state"] = relay_state ? "ON" : "OFF";
-
-    char jsonBuffer[256];
-    serializeJson(doc, jsonBuffer);
-
-    client.publish(topic, jsonBuffer);
+    
+    // ✅ 3. Publicar com BATCHING a cada 5s
+    // Formato: "current_fast,precise,state,avg"
+    // Exemplo: "5.23,5.18,1,5.20"
+    if (client.connected() && now - last_publish >= MQTT_PUBLISH_INTERVAL) {
+        last_publish = now;
         
+        // Calcular média dos últimos 5 segundos
+        double avg_current = reading_count > 0 ? accumulated_current / reading_count : 0;
+        
+        // Payload compacto em formato fixo (sem JSON)
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), 
+                 "%.2f,%.2f,%d,%.2f",
+                 last_current,           // Última leitura rápida
+                 precise_current,        // Leitura precisa com 2500 amostras
+                 relay_state ? 1 : 0,    // Estado: 1=ON, 0=OFF
+                 avg_current);           // Média dos últimos 5s
+        
+        Serial.printf("Publishing: %s\n", buffer);
+        client.publish(topic, buffer);
+        
+        // Reset acumulador
+        accumulated_current = 0.0;
+        reading_count = 0;
+    }
+    
+    // ✅ 4. Yield ao watchdog
+    yield();
 }
