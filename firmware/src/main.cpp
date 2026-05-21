@@ -134,7 +134,7 @@ void loop() {
     printf("CUrrent: %d", current_Irms);
 
     JsonDocument doc;
-    doc["current"] = current_Irms;
+    doc["current_A"] = current_Irms;
     doc["outlet_state"] = relay_state ? "ON" : "OFF";
 
     char jsonBuffer[256];
