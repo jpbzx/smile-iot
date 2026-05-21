@@ -7,9 +7,11 @@ queue that bridges the paho background thread with Streamlit's main thread.
 No Streamlit widget calls are made inside callbacks (they would crash).
 The sync_mqtt() function is the single transfer point: call it at the top of
 every Streamlit rerun to drain queued messages into session_state.
+
+Data Format (from ESP32):
+  "5.23,5.18,1,5.20" → (current_fast, precise, state, avg)
 """
 
-import json
 import queue
 
 import paho.mqtt.client as mqtt
@@ -35,6 +37,32 @@ _mqtt_conn_state: dict = {"connected": False, "error": ""}
 # ---------------------------------------------------------------------------
 # paho callbacks  (background thread — NO st.* calls)
 # ---------------------------------------------------------------------------
+
+def _parse_energy_reading(payload_str: str) -> dict | None:
+    """
+    Parse compact energy reading format: "current_fast,precise,state,avg"
+    Example: "5.23,5.18,1,5.20" → {current_A, precise_A, state, avg}
+    
+    Returns dict or None if parsing fails.
+    """
+    try:
+        parts = payload_str.strip().split(',')
+        if len(parts) != 4:
+            return None
+        
+        return {
+            "current_A": float(parts[0]),      # Fast reading (100 samples)
+            "precise_A": float(parts[1]),      # Precise reading (2500 samples)
+            "state": bool(int(parts[2])),      # 1=ON, 0=OFF
+            "avg": float(parts[3]),            # Average over 5s
+            # Legacy fields for backward compatibility with InfluxDB
+            "outlet_state": "ON" if int(parts[2]) else "OFF",
+            "power_W": 230.0 * float(parts[1]),  # Estimate: V * I
+            "voltage_V": 230.0
+        }
+    except (ValueError, IndexError, AttributeError):
+        return None
+
 
 def _on_connect(
     client: mqtt.Client,
@@ -63,26 +91,33 @@ def _on_disconnect(
 
 
 def _on_message(client: mqtt.Client, userdata: dict, msg: mqtt.MQTTMessage) -> None:
-    """Parse incoming JSON and push individual readings to the queue."""
+    """Parse incoming compact energy data and push to queue."""
     try:
-        payload = json.loads(msg.payload.decode("utf-8"))
-        items = payload if isinstance(payload, list) else [payload]
-        for item in items:
-            _mqtt_queue.put_nowait(item)
+        # Decode payload from bytes to string
+        payload_str = msg.payload.decode("utf-8")
+        
+        # Parse the compact format
+        reading = _parse_energy_reading(payload_str)
+        if reading is None:
+            print(f"Warning: Failed to parse MQTT message: {payload_str}")
+            return
+        
+        # Push to queue for Streamlit
+        _mqtt_queue.put_nowait(reading)
+        
+        # Save to InfluxDB
+        try:
+            influx_db.save_energy_reading(
+                current_a=reading.get("current_A", 0.0),
+                power_w=reading.get("power_W", 0.0),
+                voltage_v=reading.get("voltage_V", 230.0),
+                outlet_state=reading.get("outlet_state", "UNKNOWN")
+            )
+        except Exception as e:
+            print(f"Error on InfluxDB layer: {e}")
 
-            #save data history to InfluxDB
-            try:
-                influx_db.save_energy_reading(
-                    current_a=item.get("current_A", 0.0),
-                    power_w=item.get("power_W", 0.0),
-                    voltage_v=item.get("voltage_V", 230.0),
-                    outlet_state=item.get("outlet_state", "UNKNOWN")
-                )
-            except Exception as e:
-                print(f"Error on InlfuxDB layer: {e}")
-
-    except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
-        pass  # Silently discard malformed messages
+    except (UnicodeDecodeError, Exception) as e:
+        print(f"Error processing MQTT message: {e}")
 
 
 # ---------------------------------------------------------------------------
