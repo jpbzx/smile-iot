@@ -10,6 +10,7 @@ Run:  streamlit run app.py
 import time
 import pandas as pd
 import streamlit as st
+import altair as alt
 
 from utils.mqtt_client import (
     connect_mqtt,
@@ -18,6 +19,7 @@ from utils.mqtt_client import (
     sync_mqtt,
     publish_command,
 )
+from db.influx_manager import influx_db
 
 # (Portugal)
 GRID_VOLTAGE = 230.0
@@ -238,6 +240,77 @@ with col_current:
     with st.container(border=True):
         st.subheader("Current draw (A)")
         st.line_chart(rt_df, x="timestamp", y="current_A", color="#FF9800")
+
+
+# ---------------------------------------------------------------------------
+# Historical data from InfluxDB
+# ---------------------------------------------------------------------------
+st.markdown("---")
+st.subheader("Historical Data (InfluxDB)")
+
+hist_col1, hist_col2, hist_col3 = st.columns(3)
+
+with hist_col1:
+    history_hours = st.selectbox("Historical period", [24, 48, 72, 168], index=0)
+
+with hist_col2:
+    if st.button("Refresh History", use_container_width=True):
+        st.session_state.influx_refresh = True
+
+with hist_col3:
+    if st.button("Clear old data (90+ days)", use_container_width=True):
+        try:
+            if influx_db.delete_old_readings(days_old=90):
+                st.success("Old data cleared successfully")
+            else:
+                st.error("Failed to clear old data")
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# Load historical data
+try:
+    hourly_data = influx_db.get_hourly_aggregation(hours_back=history_hours)
+    
+    if hourly_data:
+        hourly_df = pd.DataFrame(hourly_data)
+        hourly_df["timestamp"] = pd.to_datetime(hourly_df["timestamp"])
+        
+        tab_daily, tab_hourly = st.tabs(["Daily Summary", "Hourly Trend"])
+        
+        with tab_daily:
+            # Get daily aggregation
+            daily_data = influx_db.get_daily_aggregation(days_back=history_hours // 24)
+            if daily_data:
+                daily_df = pd.DataFrame(daily_data)
+                daily_df["date"] = pd.to_datetime(daily_df["date"]).dt.date
+                
+                st.dataframe(
+                    daily_df[["date", "avg_power_W", "energy_kWh"]],
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # Chart
+                col_daily1, col_daily2 = st.columns(2)
+                with col_daily1:
+                    st.bar_chart(daily_df, x="date", y="avg_power_W", color="#4CAF50")
+                with col_daily2:
+                    st.bar_chart(daily_df, x="date", y="energy_kWh", color="#FF5722")
+            else:
+                st.info("No daily data available")
+        
+        with tab_hourly:
+            st.dataframe(
+                hourly_df[["timestamp", "avg_power_W"]],
+                use_container_width=True,
+                hide_index=True
+            )
+            st.line_chart(hourly_df, x="timestamp", y="avg_power_W", color="#2196F3")
+    else:
+        st.info("No historical data available in InfluxDB yet. Connect MQTT to start collecting data.")
+
+except Exception as e:
+    st.warning(f"InfluxDB connection issue: {e}")
 
 
 # ---------------------------------------------------------------------------
