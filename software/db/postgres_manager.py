@@ -3,7 +3,6 @@ import psycopg2
 import bcrypt
 from pathlib import Path
 from datetime import datetime, timedelta
-import secrets
 try:
     from dotenv import load_dotenv
     # Load .env from software/ when present (development only)
@@ -213,83 +212,6 @@ def reset_failed_attempts(username):
         conn.close()
 
 
-def create_password_reset_request(email: str, expires_minutes: int = 60):
-    """Generate a password reset token for the user with the given email.
-    Returns (True, token) on success or (False, error_message) on failure."""
-    conn = get_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT id FROM utilizadores WHERE email = %s", (email,))
-        row = cur.fetchone()
-        if row is None:
-            return False, "Email not found"
-        user_id = row[0]
-        token = secrets.token_urlsafe(32)
-        expires = datetime.utcnow() + timedelta(minutes=expires_minutes)
-        cur.execute(
-            "INSERT INTO password_reset_tokens (user_id, token, expires_at, used) VALUES (%s, %s, %s, %s)",
-            (user_id, token, expires, False)
-        )
-        conn.commit()
-        return True, token
-    except Exception as e:
-        conn.rollback()
-        return False, str(e)
-    finally:
-        cur.close()
-        conn.close()
-
-
-def verify_reset_token(token: str):
-    """Verify a reset token. Returns (True, user_id) if valid; otherwise (False, reason)."""
-    conn = get_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            "SELECT id, user_id, expires_at, used FROM password_reset_tokens WHERE token = %s",
-            (token,)
-        )
-        row = cur.fetchone()
-        if not row:
-            return False, "invalid_token"
-        token_id, user_id, expires_at, used = row
-        if used:
-            return False, "token_used"
-        if expires_at is None or datetime.utcnow() > expires_at:
-            return False, "token_expired"
-        return True, user_id
-    except Exception as e:
-        return False, str(e)
-    finally:
-        cur.close()
-        conn.close()
-
-
-def reset_password_with_token(token: str, new_password: str):
-    """Reset user password using a valid token. Marks the token as used."""
-    valid, payload = verify_reset_token(token)
-    if not valid:
-        return False, payload
-    user_id = payload
-    conn = get_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            "UPDATE utilizadores SET password_hash = %s WHERE id = %s",
-            (hash_password(new_password), user_id)
-        )
-        cur.execute(
-            "UPDATE password_reset_tokens SET used = TRUE WHERE token = %s",
-            (token,)
-        )
-        conn.commit()
-        return True, "password_updated"
-    except Exception as e:
-        conn.rollback()
-        return False, str(e)
-    finally:
-        cur.close()
-        conn.close()
 
 def init_db():
     """Cria as tabelas e o Admin user."""
@@ -349,16 +271,7 @@ def init_db():
             );
         """)
 
-        # Password reset tokens table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES utilizadores(id) ON DELETE CASCADE,
-                token VARCHAR(255) UNIQUE NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                used BOOLEAN DEFAULT FALSE
-            );
-        """)
+
 
         conn.commit()
         print("Base de dados PostgreSQL inicializada")
