@@ -31,3 +31,21 @@ services:
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_ADMIN_TOKEN}
     volumes:
       - ./data/influx:/var/lib/influxdb2
+
+  # Dashboard Streamlit
+  streamlit_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smile_dashboard
+    restart: always
+    ports:
+      - "8501:8501"
+    depends_on:
+      - postgres_db
+      - influx_db
+    env_file: .env
+    environment:
+      # Sobrescrevemos os hosts para a rede interna do Docker
+      - POSTGRES_HOST=postgres_db
+      - INFLUX_URL=http://influx_db:8086
