@@ -1,8 +1,8 @@
 # SMILE-IoT: Local Energy Monitoring and Inspection System via IoT
 
-**Última atualização:** Maio 16, 2026  
-**Ramo ativo:** `feature/docker-and-database`  
-**Versão:** Protótipo em desenvolvimento (v0.2-beta)
+**Última atualização:** Maio 25, 2026  
+**Ramo ativo:** `feature/set_sistem_4_prodReady`  
+**Versão:** v0.2-beta (Production Ready)
 
 ---
 
@@ -21,9 +21,9 @@ O sistema une competências de:
 ## 2. Estado Atual do Projeto
 
 ### Rama de Desenvolvimento
-- **Rama ativa:** `feature/docker-and-database` (HEAD)
+- **Rama ativa:** `feature/set_sistem_4_prodReady` (HEAD)
 - **Rama principal:** `main` (merged)
-- **Última feature implementada:** Integração Docker + Inicialização de Bases de Dados
+- **Última feature implementada:** Sistema preparado para produção com Docker environment completo
 
 ### Milestones Completados
 1. ✅ **Leitura de sensores SCT-013** (feature/SCT-013_implementation)
@@ -37,9 +37,9 @@ O sistema une competências de:
 9. ✅ **Funcionalidades de utilizador**: criação de utilizadores, atualização de password, página de perfil
 
 ### Milestones Em Desenvolvimento
-- 🟡 Inicializadores de base de dados (implementados; em testes de integração)
-- 🟡 Persistência de dados históricos (InfluxDB write pipeline em desenvolvimento)
-- 🟡 Autenticação/Autorização no Dashboard (integração de flows de login ainda a refinar)
+- 🟡 TLS/SSL MQTT encryption
+- 🟡 Múltiplos sensores por instalação
+- 🟡 API REST completa
 
 ### Milestones Planeados
 - ⭕ API REST completa
@@ -140,22 +140,18 @@ lib_deps =
 ### Funcionalidades Implementadas
 1. **Leitura ADC:** Amostragem de tensão do SCT-013 a ~10 kHz
 2. **Cálculo RMS:** Usando EmonLib para determinar corrente RMS
-3. **Cálculo de Potência:** 
-   - Aparente (VA): RMS × Tensão nominal (230V PT)
-   - Real (W): Apenas monofásico, potência ativa
-4. **Encapsulamento JSON:** Pacotes MQTT com timestamp e estado de saída
-5. **Controlo de Saída:** Recebimento de comandos MQTT para ligar/desligar saída
+3. **Encapsulamento JSON:** Pacotes MQTT com corrente e estado de saída
+4. **Controlo de Relay:** Recebimento de comandos MQTT para ligar/desligar saída
+5. **Proteção de Corrente:** Limite de 15A com desligação automática
 
 ### Formato de Dados MQTT (TX)
 ```json
 {
   "current_A": 5.23,
-  "power_W": 1202.9,
-  "voltage_V": 230,
-  "timestamp": "2026-05-05T14:32:15Z",
   "outlet_state": "ON"
 }
 ```
+**Nota:** `power_W` e `voltage_V` são calculados no backend usando tensão nominal (230V PT).
 
 ---
 
@@ -165,7 +161,7 @@ lib_deps =
 - **Broker:** Configurável (padrão: `broker.emqx.io`)
 - **Port:** 1883 (TCP/MQTT não-criptografado)
 - **Topics:**
-  - **RX (Dashboard → ESP32):** `smile-iot/control/outlet` (ligar/desligar)
+  - **RX (Dashboard → ESP32):** `smile-iot/command` (comandos: "ON"/"OFF")
   - **TX (ESP32 → Dashboard):** `smile-iot/power` (dados em tempo real)
 
 ### Segurança (Atual)
