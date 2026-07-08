@@ -1,10 +1,27 @@
+# SMILE-IoT infrastructure — MQTT broker + databases.
+# The Flask API, ingest worker, and React dev server run on the host (see README).
 services:
-  # Base de dados para Utilizadores e Permissões
-  postgres_db:
+  # MQTT broker (local — replaces the public broker.emqx.io)
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smile_mosquitto
+    restart: always
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./data/mosquitto:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-W", "3"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Users / auth / audit
+  postgres:
     image: postgres:15
     container_name: smile_postgres
     restart: always
-    env_file: .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -13,21 +30,30 @@ services:
       - "5432:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Base de dados para Histórico de Energia (Séries Temporais)
-  influx_db:
+  # Energy time series
+  influxdb:
     image: influxdb:2.7
     container_name: smile_influx
     restart: always
     ports:
       - "8086:8086"
-    env_file: .env
     environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_USER}
-      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASSWORD}
-      - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
-      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUX_BUCKET}
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_ADMIN_TOKEN}
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_ADMIN_TOKEN}
     volumes:
       - ./data/influx:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
