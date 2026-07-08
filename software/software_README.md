@@ -1,31 +1,39 @@
 # Software
 
-Python application layer for telemetry ingestion and data visualization.
+Python application layer: authentication, live energy dashboard, telemetry archiving.
 
-## Architecture
-This directory contains two decoupled services communicating via a local data store:
-1. **`listener.py`:** Background MQTT client. Subscribes to the broker and writes incoming telemetry payloads to local storage (`data.json`).
-2. **`dashboard.py`:** Streamlit web interface. Polls the local storage and renders real-time time-series charts and KPIs.
+> **Docs:**
+> - Current architecture, directory map, firmware/MQTT contract, known issues →
+>   [docs/SOFTWARE_ARCHITECTURE_2026-07-08.md](../docs/SOFTWARE_ARCHITECTURE_2026-07-08.md)
+> - Planned Flask + React rewrite (endpoint map, phases) →
+>   [docs/BACKEND_REFACTOR_PLAN_2026-07-08.md](../docs/BACKEND_REFACTOR_PLAN_2026-07-08.md)
 
-## Setup
+## What's here (today: Streamlit implementation)
+
+| Path | Role |
+|---|---|
+| `app.py` | Entrypoint — session, timeout, role-based navigation |
+| `views/` | Pages: login, dashboard, admin panel, profile |
+| `db/postgres_manager.py` | Users/auth SQL (bcrypt, lockout, audit, reset tokens) + `init_db()` |
+| `db/influx_manager.py` | InfluxDB writes (energy readings) |
+| `utils/mqtt_client.py` | MQTT subscriber ↔ Streamlit bridge, command publishing |
+| `utils/emailer.py` | SMTP password-reset mail |
+| `docker-compose.yml` | PostgreSQL 15 (:5432) + InfluxDB 2.7 (:8086) |
+
+## Run
+
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+cd software
+docker compose up -d              # databases
+# edit .env: DB_HOST=localhost   (app runs on the host, not in Docker)
+source .venv/bin/activate         # or create: python3 -m venv .venv && pip install -r requirements.txt
+python -m db.postgres_manager     # ONE-TIME: create tables + admin user (admin/admin123)
+streamlit run app.py              # http://localhost:8501
 ```
 
-## Execution
+In the dashboard sidebar, connect to the broker (`broker.emqx.io`, topic
+`smile-iot/power`). To exercise without hardware: `firmware/tools/mqtt_debug.py`.
 
-Run both services concurrently in separate terminal sessions
-
-Terminal 1 - Start the ingestion deamon
-```bash
-python listener.py
-```
-
-Terminal 2 - Boot the web UI 
-```bash
-streamlit run dashboard.py
-```
-
-
+> ⚠️ This implementation only ingests telemetry while a logged-in dashboard tab is
+> connected — see the architecture doc's known-issues list. The Flask + React refactor
+> plan addresses this.
