@@ -1,53 +1,25 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyc
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
+.venv/
 venv/
-env/
-ENV/
-.venv
 
-# Streamlit
-.streamlit/
-.streamlit/secrets.toml
+# Node / frontend
+node_modules/
+frontend/dist/
 
-# Environment variables
+# Environment & secrets
 .env
 .env.local
 
-# IDE
+# Docker bind-mount data (postgres / influx / mosquitto)
+data/
+
+# IDE / OS
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-
-# OS
 .DS_Store
-Thumbs.db
+*.swp
 
 # Logs
 *.log
-
-# Data
-data/

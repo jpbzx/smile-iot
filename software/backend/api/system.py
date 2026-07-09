@@ -1,11 +1,22 @@
-"""Liveness + stack health."""
+"""Liveness + stack health + admin audit."""
 
-from flask import Blueprint
+from flask import Blueprint, request
 from flask_jwt_extended import jwt_required
 
+from backend.api.helpers import admin_required
 from backend.services import influx, mqtt_publisher, postgres
 
 bp = Blueprint("system", __name__)
+
+
+@bp.get("/admin/login-logs")
+@admin_required
+def login_logs():
+    try:
+        limit = min(max(int(request.args.get("limit", 100)), 1), 1000)
+    except ValueError:
+        limit = 100
+    return {"logs": postgres.list_login_logs(limit)}
 
 
 @bp.get("/health")

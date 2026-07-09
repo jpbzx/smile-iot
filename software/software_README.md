@@ -1,39 +1,71 @@
 # Software
 
-Python application layer: authentication, live energy dashboard, telemetry archiving.
+Flask API + MQTT ingest worker + React dashboard for the SMILE-IoT energy monitor.
+Rebuilt from scratch 2026-07-09 (the previous Streamlit implementation lives in git
+history and in [docs/SOFTWARE_ARCHITECTURE_2026-07-08.md](../docs/SOFTWARE_ARCHITECTURE_2026-07-08.md)).
 
-> **Docs:**
-> - Current architecture, directory map, firmware/MQTT contract, known issues →
->   [docs/SOFTWARE_ARCHITECTURE_2026-07-08.md](../docs/SOFTWARE_ARCHITECTURE_2026-07-08.md)
-> - Planned Flask + React rewrite (endpoint map, phases) →
->   [docs/BACKEND_REFACTOR_PLAN_2026-07-08.md](../docs/BACKEND_REFACTOR_PLAN_2026-07-08.md)
+> **Design & endpoint reference:**
+> [docs/BACKEND_REFACTOR_PLAN_2026-07-08.md](../docs/BACKEND_REFACTOR_PLAN_2026-07-08.md)
 
-## What's here (today: Streamlit implementation)
+## Architecture
 
-| Path | Role |
+```text
+ESP32 ⇄ Mosquitto ← ingest worker → InfluxDB ← Flask API ← React SPA (JWT)
+        (docker)     (python proc)   (docker)      ↑ psycopg2
+                                              PostgreSQL (docker)
+```
+
+The **ingest worker** subscribes to `smile-iot/power` 24/7 and batch-writes readings
+to InfluxDB — telemetry is archived whether or not anyone has the dashboard open.
+The **API** reads InfluxDB/PostgreSQL and publishes relay commands (`ON`/`OFF`/`RESET`)
+to `smile-iot/command`; the browser never touches MQTT.
+
+| Path | What it is |
 |---|---|
-| `app.py` | Entrypoint — session, timeout, role-based navigation |
-| `views/` | Pages: login, dashboard, admin panel, profile |
-| `db/postgres_manager.py` | Users/auth SQL (bcrypt, lockout, audit, reset tokens) + `init_db()` |
-| `db/influx_manager.py` | InfluxDB writes (energy readings) |
-| `utils/mqtt_client.py` | MQTT subscriber ↔ Streamlit bridge, command publishing |
-| `utils/emailer.py` | SMTP password-reset mail |
-| `docker-compose.yml` | PostgreSQL 15 (:5432) + InfluxDB 2.7 (:8086) |
+| `backend/app.py` | Flask app factory (`python -m backend.app`, :5000) |
+| `backend/config.py` | The only module that reads `.env` |
+| `backend/api/` | Blueprints: auth, users, telemetry, control, system |
+| `backend/services/` | postgres (auth/lockout/audit), influx (reads), mqtt_publisher, emailer |
+| `backend/ingest/worker.py` | MQTT→InfluxDB worker (`python -m backend.ingest.worker`) |
+| `backend/scripts/init_db.py` | One-time schema + seed admin |
+| `frontend/` | Vite + React SPA (login, dashboard, profile, admin) |
+| `docker-compose.yml` | mosquitto :1883 · postgres :5432 · influxdb :8086 |
 
-## Run
+## First-time setup
 
 ```bash
 cd software
-docker compose up -d              # databases
-# edit .env: DB_HOST=localhost   (app runs on the host, not in Docker)
-source .venv/bin/activate         # or create: python3 -m venv .venv && pip install -r requirements.txt
-python -m db.postgres_manager     # ONE-TIME: create tables + admin user (admin/admin123)
-streamlit run app.py              # http://localhost:8501
+cp .env.example .env                      # then fill in generated secrets
+docker compose up -d                      # broker + databases (influx auto-inits)
+# create the scoped Influx token and paste it into .env (commands in .env.example)
+python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
+.venv/bin/python -m backend.scripts.init_db    # tables + admin/admin123 (change it!)
+cd frontend && npm install
 ```
 
-In the dashboard sidebar, connect to the broker (`broker.emqx.io`, topic
-`smile-iot/power`). To exercise without hardware: `firmware/tools/mqtt_debug.py`.
+## Run (three terminals)
 
-> ⚠️ This implementation only ingests telemetry while a logged-in dashboard tab is
-> connected — see the architecture doc's known-issues list. The Flask + React refactor
-> plan addresses this.
+```bash
+.venv/bin/python -m backend.ingest.worker   # 1 — telemetry archiver
+.venv/bin/python -m backend.app             # 2 — API on :5000
+cd frontend && npm run dev                  # 3 — dashboard on :5173
+```
+
+Login at http://localhost:5173 (seeded `admin` / `admin123`).
+
+## Testing without hardware
+
+```bash
+# fake one firmware reading (exact contract shape):
+docker exec smile_mosquitto mosquitto_pub -t smile-iot/power \
+  -m '{"current_A":2.4,"power_W":552.0,"voltage_V":230.0,"outlet_state":"ON","trip_latched":false}'
+# watch commands the dashboard sends:
+docker exec smile_mosquitto mosquitto_sub -t smile-iot/command -v
+```
+
+`firmware/tools/mqtt_debug.py` does both interactively.
+
+> **Firmware note:** boards flashed before 2026-07 still point at the public
+> `broker.emqx.io`. Either reflash with `MQTT_BROKER` set to this machine's LAN IP
+> (firmware/include/config.h) or set `MQTT_HOST=broker.emqx.io` in `.env` to bridge
+> temporarily.

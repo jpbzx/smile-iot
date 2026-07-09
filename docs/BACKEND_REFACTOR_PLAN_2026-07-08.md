@@ -1,8 +1,13 @@
 # SMILE-IoT — Backend Refactor Plan: Flask + React
 
 **Date:** 2026-07-08
-**Status:** In progress on branch `feature/flask-react-backend` (from
-`feature/freertos-tasks-and-provisioning`)
+**Status:** DELIVERED 2026-07-09 on branch `feature/flask-react-backend` —
+executed as a full teardown + from-scratch rebuild rather than a phased
+migration (user decision): old Streamlit stack, containers, images and data
+wiped; Phases 0–4 built and verified in one pass. Phase 5 (multi-device)
+remains deferred. Deviations from this plan: English DB schema (no legacy
+data survived, so no migration constraint), `GET /api/admin/login-logs`
+delivered early, immediate cutover (no `legacy_streamlit/` transition).
 **Decisions (2026-07-08):** local **Mosquitto** confirmed (risk #1/#2 accepted:
 firmware keeps pointing at `broker.emqx.io` until reflashed — bridge via `.env`);
 **single-board scope** confirmed — Phase 5 (devices/multi-board) deferred.
