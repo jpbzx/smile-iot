@@ -1,6 +1,6 @@
 # firmware/tools
 
-Host-side scripts for exercising the firmware over MQTT without a phone or the Streamlit dashboard.
+Host-side scripts for exercising the firmware over MQTT without a phone or the web dashboard.
 
 ## mqtt_debug.py
 

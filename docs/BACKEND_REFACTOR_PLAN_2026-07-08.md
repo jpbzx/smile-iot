@@ -8,6 +8,8 @@ wiped; Phases 0–4 built and verified in one pass. Phase 5 (multi-device)
 remains deferred. Deviations from this plan: English DB schema (no legacy
 data survived, so no migration constraint), `GET /api/admin/login-logs`
 delivered early, immediate cutover (no `legacy_streamlit/` transition).
+**As-built reference:**
+[SOFTWARE_ARCHITECTURE_2026-07-09.md](SOFTWARE_ARCHITECTURE_2026-07-09.md).
 **Decisions (2026-07-08):** local **Mosquitto** confirmed (risk #1/#2 accepted:
 firmware keeps pointing at `broker.emqx.io` until reflashed — bridge via `.env`);
 **single-board scope** confirmed — Phase 5 (devices/multi-board) deferred.

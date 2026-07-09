@@ -28,3 +28,10 @@ The architecture was designed with a focus on modularity and rapid feasibility, 
 │ (Browser/Mobile)   │      │ (Real-Time Charts)   │      │ (Broker/Backend)   │
 └────────────────────┘      └──────────────────────┘      └────────────────────┘
 ```
+
+Concretely, layer 4–5 is implemented in [`software/`](software/software_README.md) as
+Mosquitto (MQTT broker) + a Python ingest worker + a Flask REST API over
+PostgreSQL/InfluxDB, with a React dashboard — detailed in
+[docs/SOFTWARE_ARCHITECTURE_2026-07-09.md](docs/SOFTWARE_ARCHITECTURE_2026-07-09.md).
+Layer 3 is the ESP32 firmware in [`firmware/`](firmware/)
+([docs/FIRMWARE_REWRITE_2026-07-08.md](docs/FIRMWARE_REWRITE_2026-07-08.md)).

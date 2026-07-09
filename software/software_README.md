@@ -4,8 +4,9 @@ Flask API + MQTT ingest worker + React dashboard for the SMILE-IoT energy monito
 Rebuilt from scratch 2026-07-09 (the previous Streamlit implementation lives in git
 history and in [docs/SOFTWARE_ARCHITECTURE_2026-07-08.md](../docs/SOFTWARE_ARCHITECTURE_2026-07-08.md)).
 
-> **Design & endpoint reference:**
-> [docs/BACKEND_REFACTOR_PLAN_2026-07-08.md](../docs/BACKEND_REFACTOR_PLAN_2026-07-08.md)
+> **Full as-built reference** (Docker, Flask internals, API map, DB schemas, MQTT, frontend):
+> [docs/SOFTWARE_ARCHITECTURE_2026-07-09.md](../docs/SOFTWARE_ARCHITECTURE_2026-07-09.md)
+> · Design history: [docs/BACKEND_REFACTOR_PLAN_2026-07-08.md](../docs/BACKEND_REFACTOR_PLAN_2026-07-08.md)
 
 ## Architecture
 

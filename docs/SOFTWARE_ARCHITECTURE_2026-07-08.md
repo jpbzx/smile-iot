@@ -1,5 +1,10 @@
 # SMILE-IoT — Software Directory Architecture Overview
 
+> ⚠️ **SUPERSEDED (2026-07-09).** This document describes the **retired Streamlit
+> stack**, torn down and replaced by the Flask + React rebuild. It stays as the
+> historical record of what existed and why it was replaced. The current reference
+> is [SOFTWARE_ARCHITECTURE_2026-07-09.md](SOFTWARE_ARCHITECTURE_2026-07-09.md).
+
 **Date:** 2026-07-08
 **Scope:** `software/` as it exists today (Streamlit-based backend), its structure, runtime
 model, data stores, and its integration contract with the ESP32 firmware.
