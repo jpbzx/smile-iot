@@ -1,5 +1,3 @@
-#pragma once
-
 #include <Arduino.h>
 
 // Returns true if the BOOT button (GPIO0) is held low for at least holdMs,

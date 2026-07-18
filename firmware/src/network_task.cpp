@@ -39,7 +39,7 @@ void mqttReconnect(PubSubClient &client) {
     }
 }
 
-// Hand-rolled JSON (no ArduinoJson) -- payload shape is small and fixed,
+// Hand-rolled JSON -- payload shape is small and fixed,
 // so a formatted string keeps the firmware's only external dependency
 // scoped to the MQTT client itself.
 void publishReading(PubSubClient &client) {

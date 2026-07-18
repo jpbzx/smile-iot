@@ -1,5 +1,3 @@
-#pragma once
-
 #include <Arduino.h>
 
 // Latest sensor reading, published by sensorTask and consumed by networkTask.

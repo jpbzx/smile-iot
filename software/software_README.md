@@ -34,11 +34,25 @@ to `smile-iot/command`; the browser never touches MQTT.
 
 ## First-time setup
 
+Two kinds of local state get created that git never sees — a Python **virtual
+environment** and a **secrets file**. Both are gitignored (`.venv/`, `.env` in
+`.gitignore`) because they're specific to your machine, not the project:
+
+| File/dir | Committed to git? | What it is |
+|---|---|---|
+| `.env.example` | Yes | Template listing every variable the app needs, with placeholder values (`generate-me`, `paste-scoped-token-here`). Safe to commit — no real secrets. |
+| `.env` | **No** (gitignored) | Your actual config: real generated passwords + the Influx token. `backend/config.py` reads this at runtime. Created once by copying `.env.example`, then never shared or pushed. |
+| `.venv/` | **No** (gitignored) | A Python virtual environment — an isolated copy of the Python interpreter + installed packages, local to this checkout. Keeps `backend/requirements.txt` deps off your system Python. Created by `python3 -m venv .venv`; safe to delete and recreate any time. |
+
+If `.env` is ever missing, empty, or out of sync, just repeat the steps below —
+nothing reads secrets from anywhere else.
+
 ```bash
 cd software
-cp .env.example .env                      # then fill in generated secrets
+cp .env.example .env                      # your machine's copy — fill in generated secrets next
 docker compose up -d                      # broker + databases (influx auto-inits)
-# create the scoped Influx token and paste it into .env (commands in .env.example)
+# generate each `generate-me` secret with:  python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+# then create the scoped Influx token and paste it into .env (commands in .env.example)
 python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
 .venv/bin/python -m backend.scripts.init_db    # tables + admin/admin123 (change it!)
 cd frontend && npm install
