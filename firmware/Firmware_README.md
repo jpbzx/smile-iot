@@ -8,7 +8,7 @@ Responsible for analog signal acquisition, RMS calculation, and MQTT telemetry p
 ## Stack
 * **Environment:** PlatformIO
 * **Framework:** Arduino Core (C++)
-* **Dependencies:** `PubSubClient` (MQTT), `EmonLib` (Energy Monitoring)
+* **Dependencies:** `PubSubClient` (MQTT)
 
 ## Quickstart
 

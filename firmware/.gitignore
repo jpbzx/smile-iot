@@ -52,3 +52,4 @@ lib/
 
 # Generated files
 .pio/
+compile_commands.json

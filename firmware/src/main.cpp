@@ -1,145 +1,57 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
-#include <PubSubClient.h>
 #include <WiFi.h>
-#include <EmonLib.h>
 
-//Energy monitoring
-//sct-013-000 neededs a burden resis 33ohm -> calib = 60.6
-//sct-013-030 no burnden resisteor needed -> calib = 30
-const double calib = 30;
-const double CURRENT_LIMIT = 15.0;  //15 Amps on most european houses
+#include "config.h"
+#include "shared_state.h"
+#include "provisioning.h"
+#include "sensor_task.h"
+#include "network_task.h"
 
-// wifi config
-const char *ssid = "João Bessa";
-const char *pwd = "tassemnet";
-
-// MQTT
-const char *mqtt_broker = "broker.emqx.io";
-const char *topic = "smile-iot/power";
-//topic to recieve commands
-const char *sub_topic = "smile-iot/command";
-const char *username = "1211189";
-const char *usr_pwd = "isep";
-const int port = 1883;
-
-// PINOUT
-#define LED_PIN 2 // Built-in LED pin on ESP32-DevKit
-#define SCT_PIN 34 //sct-013 -> gpio 34
-#define RELAY_PIN 25  
-
-WiFiClient espClient;
-PubSubClient client(espClient);
-EnergyMonitor emon;
-
-// Control variables
-unsigned long last_reading = 0;
-const long _delay = 1000; // um segundo
-bool relay_state = false; // Flase por default
-
-// Callback para receber comandos do Dashboard (Streamlit)
-void callback(char *topic, byte *payload, unsigned int length) {
-    String msg = "";
-    for (int i = 0; i < length; i++) {
-        msg += (char)payload[i];
-    }
-    
-    Serial.printf("Received commad on topic -> %s: %s\n", topic, msg.c_str());
-
-    // Atualiza o estado do relay
-    if (msg == "ON") {
-        relay_state = true;
-        digitalWrite(RELAY_PIN, HIGH);
-        digitalWrite(LED_PIN, HIGH); // Feedback visual
-    } else if (msg == "OFF") {
-        relay_state = false;
-        digitalWrite(RELAY_PIN, LOW);
-        digitalWrite(LED_PIN, LOW);
-    }
-}
-
-double get_Irms() {
-    //I_rms calculations
-    return emon.calcIrms(2500); //arg -> number of samples
-}
-
-void wifi_connection() {
-    // connecting to wifi
-    WiFi.begin(ssid, pwd);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Connecting to wifi... make sure network is available\n");
-    }
-    Serial.println("Connected!");
-}
-
-void mqtt_reconnect() {
-    // Loop until connection
-    while (!client.connected()) {
-        String client_id = "esp32-1-";
-        client_id += String(WiFi.macAddress());
-        
-        Serial.printf("Connecting to a MQTT broker as: %s\n", client_id.c_str());
-        
-        if (client.connect(client_id.c_str(), username, usr_pwd)) {
-            Serial.println("LIGADO!");
-            // Subscrever ao tópico de comandos
-            client.subscribe(sub_topic);
-        } else {
-            Serial.printf("Connection error. Error: %d. Trying again in 5s...\n", client.state());
-            delay(5000);
-        }        
-    }
-}
+// SMILE-IoT edge node.
+//
+// setup() only handles boot-time WiFi provisioning, then hands off to two
+// FreeRTOS tasks (sensor_task.cpp, network_task.cpp) with explicit
+// priorities/core pinning -- there is no ongoing work in loop(). Sensing and
+// the overcurrent safety cutoff run on their own core at higher priority so
+// they can never be delayed by MQTT/network stalls.
 
 void setup() {
-    //serial port
     Serial.begin(115200);
+    delay(200); // let USB-serial settle before the first log lines
 
-    // pin setup
-    pinMode(LED_PIN, OUTPUT);
-    pinMode(RELAY_PIN, OUTPUT);
-    digitalWrite(RELAY_PIN, LOW);
-    
-    //Config adc pin and calib
-    emon.current(SCT_PIN, calib);
+    bool forceProvision = bootButtonHeld(BOOT_BUTTON_HOLD_MS);
+    if (forceProvision) {
+        Serial.println("[Boot] BOOT button held -> clearing stored WiFi credentials.");
+        clearWifiCredentials();
+    }
 
-    //WIFI CONNECTION
-    wifi_connection();
+    char ssid[NVS_SSID_MAX_LEN + 1] = {0};
+    char pass[NVS_PASS_MAX_LEN + 1] = {0};
+    bool haveCreds = loadWifiCredentials(ssid, sizeof(ssid), pass, sizeof(pass));
 
-    //mqtt connection
-    client.setServer(mqtt_broker, port);
-    //to receive message uncomment this line
-    client.setCallback(callback);
+    bool connected = false;
+    if (haveCreds && !forceProvision) {
+        Serial.printf("[Boot] Trying stored network '%s'...\n", ssid);
+        connected = connectToWifi(ssid, pass, WIFI_CONNECT_TIMEOUT_MS);
+    }
+
+    if (!connected) {
+        Serial.println("[Boot] No usable stored network -- entering provisioning portal.");
+        runProvisioningPortal(); // blocks; saves credentials and reboots, never returns
+    }
+
+    Serial.printf("[Boot] WiFi connected. IP: %s\n", WiFi.localIP().toString().c_str());
+
+    sharedStateInit();
+
+    xTaskCreatePinnedToCore(sensorTask, "sensor_safety", SENSOR_TASK_STACK, nullptr,
+                             SENSOR_TASK_PRIORITY, nullptr, SENSOR_TASK_CORE);
+    xTaskCreatePinnedToCore(networkTask, "network_mqtt", NETWORK_TASK_STACK, nullptr,
+                             NETWORK_TASK_PRIORITY, nullptr, NETWORK_TASK_CORE);
 }
 
 void loop() {
-    if (!client.connected()) {
-        mqtt_reconnect();
-    }
-    client.loop(); //message processing & keep connection
-
-    unsigned long nowTimeStamp = millis();
-    if (nowTimeStamp - last_reading >= _delay) {
-        last_reading = nowTimeStamp;
-    }
-    
-    double current_Irms = get_Irms();
-    //safty logic
-    if (current_Irms > CURRENT_LIMIT && relay_state == true) {
-        relay_state = false;
-        digitalWrite(RELAY_PIN, LOW);
-        digitalWrite(LED_PIN, LOW);
-    }
-    printf("CUrrent: %d", current_Irms);
-
-    JsonDocument doc;
-    doc["current_A"] = current_Irms;
-    doc["outlet_state"] = relay_state ? "ON" : "OFF";
-
-    char jsonBuffer[256];
-    serializeJson(doc, jsonBuffer);
-
-    client.publish(topic, jsonBuffer);
-        
+    // All work happens in sensorTask/networkTask; the default Arduino loop
+    // task has nothing left to do, so it deletes itself.
+    vTaskDelete(nullptr);
 }
