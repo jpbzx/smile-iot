@@ -1,5 +1,3 @@
-#pragma once
-
 #include <Arduino.h>
 
 // FreeRTOS task entry point. Owns ADC sampling, RMS calculation, and the
