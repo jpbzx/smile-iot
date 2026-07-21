@@ -17,3 +17,10 @@ Circuit schematics, BOM, and physical wiring documentation.
 | `GPIO 34` | Sensor Output | Analog to Digital Converter (ADC) input |
 
 *(Place schematic exports and wiring diagrams in this directory).*
+
+## PCB Design
+A full board design package (mains-powered outlet monitor + relay switch) —
+schematic by net, BOM, floorplan, mains isolation rules, and fab spec — is in
+[PCB_DESIGN_v1.md](PCB_DESIGN_v1.md). The BOM above covers the current-sense
+front end only; the PCB adds the isolated AC-DC supply, on-board relay, fuse,
+and surge suppression.
