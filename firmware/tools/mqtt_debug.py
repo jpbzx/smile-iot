@@ -2,13 +2,21 @@
 """
 SMILE-IoT firmware MQTT debug tool.
 
-Connects to the same broker/topics the ESP32 firmware uses, prints incoming
-telemetry, and lets you publish ON/OFF/RESET commands interactively -- useful
-for exercising network_task.cpp / sensor_task.cpp end-to-end without a phone
-or the Streamlit dashboard.
+Connects to a broker/topics and lets you publish fake telemetry or ON/OFF/RESET
+commands interactively -- useful for exercising the backend (ingest worker +
+API) end-to-end without a phone or a physical board.
+
+Defaults to the LOCAL Mosquitto from `software/docker-compose.yml`
+(localhost:1883, anonymous -- no credentials needed), matching how
+backend/config.py and the ingest worker connect.
+
+Boards flashed before 2026-07 still point at the public broker.emqx.io with
+the credentials hardcoded in firmware/include/config.h -- bridge to one of
+those instead with --host/--username/--password if you need to talk to a
+real board that hasn't been reflashed yet:
 
 Usage:
-    .venv/bin/python mqtt_debug.py
+    .venv/bin/python mqtt_debug.py                     # local Mosquitto (default)
     .venv/bin/python mqtt_debug.py --host broker.emqx.io --username 1211189 --password isep
 
 Once connected, type at the prompt:
@@ -27,12 +35,12 @@ from datetime import datetime
 import paho.mqtt.client as mqtt
 from paho.mqtt.client import CallbackAPIVersion
 
-DEFAULT_HOST = "broker.emqx.io"
+DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 1883
 DEFAULT_TOPIC_POWER = "smile-iot/power"
 DEFAULT_TOPIC_COMMAND = "smile-iot/command"
-DEFAULT_USERNAME = "1211189"
-DEFAULT_PASSWORD = "isep"
+DEFAULT_USERNAME = ""
+DEFAULT_PASSWORD = ""
 
 COMMANDS = {"on": "ON", "off": "OFF", "reset": "RESET"}
 
@@ -43,7 +51,7 @@ def parse_args():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--topic-power", default=DEFAULT_TOPIC_POWER)
     parser.add_argument("--topic-command", default=DEFAULT_TOPIC_COMMAND)
-    parser.add_argument("--username", default=DEFAULT_USERNAME)
+    parser.add_argument("--username", default=DEFAULT_USERNAME, help="omit for local Mosquitto (anonymous)")
     parser.add_argument("--password", default=DEFAULT_PASSWORD)
     return parser.parse_args()
 
@@ -99,12 +107,14 @@ def main():
         callback_api_version=CallbackAPIVersion.VERSION2,
         userdata={"topic_power": args.topic_power},
     )
-    client.username_pw_set(args.username, args.password)
+    if args.username:
+        client.username_pw_set(args.username, args.password)
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message = on_message
 
-    print(f"Connecting to {args.host}:{args.port} as '{args.username}'...")
+    who = f"as '{args.username}'" if args.username else "(anonymous)"
+    print(f"Connecting to {args.host}:{args.port} {who}...")
     client.connect(args.host, args.port, keepalive=60)
     client.loop_start()
 
