@@ -25,7 +25,12 @@ constexpr float GRID_VOLTAGE_V = 230.0f; // assumed nominal — no voltage sensi
 // ---------------------------------------------------------------------------
 // MQTT
 // ---------------------------------------------------------------------------
-constexpr char MQTT_BROKER[] = "broker.emqx.io";
+// The LAN address of the machine running docker compose (Mosquitto). The board
+// and the server talk directly over the local network -- nothing leaves the LAN.
+// NOTE: this is a DHCP-assigned address. If the server's lease changes, the
+// board will silently stop reaching the broker; give it a DHCP reservation (or
+// a static IP) on the router to make this stable.
+constexpr char MQTT_BROKER[] = "192.168.1.254";
 constexpr int MQTT_PORT = 1883;
 constexpr char MQTT_TOPIC_TELEMETRY[] = "smile-iot/power";
 constexpr char MQTT_TOPIC_COMMAND[] = "smile-iot/command";
