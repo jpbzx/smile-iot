@@ -8,14 +8,18 @@ export default function Admin() {
   const [logs, setLogs] = useState([]);
   const [msg, setMsg] = useState(null);
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'user' });
+  const [voltage, setVoltage] = useState('');
+  const [voltageMsg, setVoltageMsg] = useState(null);
 
   const reload = useCallback(async () => {
-    const [u, l] = await Promise.allSettled([
+    const [u, l, v] = await Promise.allSettled([
       api('/users'),
       api('/admin/login-logs?limit=50'),
+      api('/settings/grid-voltage'),
     ]);
     if (u.status === 'fulfilled') setUsers(u.value);
     if (l.status === 'fulfilled') setLogs(l.value.logs);
+    if (v.status === 'fulfilled') setVoltage(String(v.value.voltage_V));
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -52,11 +56,46 @@ export default function Admin() {
     }
   }
 
+  async function onSaveVoltage(e) {
+    e.preventDefault();
+    setVoltageMsg(null);
+    try {
+      const { voltage_V } = await api('/settings/grid-voltage', {
+        method: 'PUT',
+        body: { voltage_V: Number(voltage) },
+      });
+      setVoltage(String(voltage_V));
+      setVoltageMsg({ ok: true, text: `Grid voltage set to ${voltage_V} V.` });
+    } catch (err) {
+      setVoltageMsg({ ok: false, text: err.message });
+    }
+  }
+
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   return (
     <>
       <h1>Administration</h1>
+
+      <div className="card">
+        <h2>Device settings</h2>
+        <form onSubmit={onSaveVoltage}>
+          <label htmlFor="gv">Grid voltage (V)</label>
+          <input
+            id="gv" type="number" step="1" min="80" max="300"
+            value={voltage} onChange={(e) => setVoltage(e.target.value)}
+          />
+          <p className="subtle">
+            Used to compute power from measured current (the device has no voltage
+            sensor). Applies to new readings going forward; historical data keeps the
+            voltage in effect when it was recorded.
+          </p>
+          {voltageMsg && <div className={`msg ${voltageMsg.ok ? 'ok' : 'error'}`}>{voltageMsg.text}</div>}
+          <div style={{ marginTop: '0.8rem' }}>
+            <button className="primary">Save</button>
+          </div>
+        </form>
+      </div>
 
       <div className="card">
         <h2>Create user</h2>

@@ -52,6 +52,14 @@ MQTT_TOPIC_COMMAND = os.environ.get("MQTT_TOPIC_COMMAND", "smile-iot/command")
 # Tag applied to readings until the firmware sends a device id (single-board scope)
 DEFAULT_DEVICE_TAG = "SCT-013_ESP32"
 
+# --- Grid voltage (server-side power derivation) -----------------------------
+# There is no voltage-sensing hardware — grid voltage is a configuration value
+# used to turn measured current into power. The live value is admin-editable and
+# stored in Postgres (app_settings); this is only the fallback + validation range.
+DEFAULT_GRID_VOLTAGE_V = 230.0
+GRID_VOLTAGE_MIN_V = 80.0   # rejects absurd values; covers 100/120/230/240 V mains
+GRID_VOLTAGE_MAX_V = 300.0
+
 # --- API / auth ---------------------------------------------------------------
 JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
 SESSION_TIMEOUT_MIN = _int("SESSION_TIMEOUT_MIN", 30)

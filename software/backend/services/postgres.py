@@ -238,6 +238,29 @@ def reset_password_with_token(token: str, new_password: str) -> tuple[bool, str]
         return True, "password_updated"
 
 
+# --- App settings (key/value) -------------------------------------------------
+def get_grid_voltage() -> float:
+    """Configured grid voltage, falling back to the default if the row is
+    missing or unparseable (never raises — callers depend on always getting a
+    usable number)."""
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT value FROM app_settings WHERE key = 'grid_voltage_v'")
+            row = cur.fetchone()
+        return float(row[0]) if row else config.DEFAULT_GRID_VOLTAGE_V
+    except (ValueError, TypeError, psycopg2.Error):
+        return config.DEFAULT_GRID_VOLTAGE_V
+
+
+def set_grid_voltage(volts: float) -> None:
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO app_settings (key, value) VALUES ('grid_voltage_v', %s)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()""",
+            (str(float(volts)),),
+        )
+
+
 # --- Health -------------------------------------------------------------------
 def ping() -> bool:
     try:
@@ -293,6 +316,15 @@ def init_db(seed_admin_password: str = "admin123") -> None:
                 expires_at TIMESTAMPTZ NOT NULL,
                 used BOOLEAN NOT NULL DEFAULT FALSE
             );
+
+            -- Global key/value config (e.g. grid_voltage_v — see config.py)
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key VARCHAR(50) PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            INSERT INTO app_settings (key, value) VALUES ('grid_voltage_v', '230')
+                ON CONFLICT (key) DO NOTHING;
         """)
 
         cur.execute("SELECT count(*) FROM users")
