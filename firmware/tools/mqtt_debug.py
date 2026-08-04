@@ -39,6 +39,12 @@ DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 1883
 DEFAULT_TOPIC_POWER = "smile-iot/power"
 DEFAULT_TOPIC_COMMAND = "smile-iot/command"
+# Empty on purpose: the default target is the local Mosquitto from
+# software/docker-compose.yml, which allows anonymous connections. Filling these
+# in would send credentials the local broker neither needs nor checks.
+# The public broker.emqx.io account used by boards not yet reflashed is
+# username "1211189" / password "isep" -- pass it explicitly when you need it:
+#     mqtt_debug.py --host broker.emqx.io --username 1211189 --password isep
 DEFAULT_USERNAME = ""
 DEFAULT_PASSWORD = ""
 
