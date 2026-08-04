@@ -24,3 +24,7 @@ schematic by net, BOM, floorplan, mains isolation rules, and fab spec — is in
 [PCB_DESIGN_v1.md](PCB_DESIGN_v1.md). The BOM above covers the current-sense
 front end only; the PCB adds the isolated AC-DC supply, on-board relay, fuse,
 and surge suppression.
+
+A KiCad-format netlist and the symbol/footprint assignment table are under
+[kicad/](kicad/) — [`smile-iot-v1.net`](kicad/smile-iot-v1.net) plus
+[`SYMBOL_FOOTPRINT_ASSIGNMENTS.md`](kicad/SYMBOL_FOOTPRINT_ASSIGNMENTS.md).
