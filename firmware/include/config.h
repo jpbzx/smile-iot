@@ -16,8 +16,16 @@ constexpr float ADC_VREF = 3.3f;
 // sct-013-000 needs a burden resistor 33ohm -> calib = 60.6
 // sct-013-030 has the burden resistor built in -> calib = 30 (A per V)
 constexpr float CT_CALIBRATION = 30.0f;
-constexpr int CT_SAMPLE_COUNT = 1000;
-constexpr int CT_SAMPLE_SPACING_US = 20;
+
+// Sampling is bounded by WALL-CLOCK TIME, not by a sample count. 100 ms is a
+// whole number of cycles at both mains frequencies (5 x 50 Hz, 6 x 60 Hz), so
+// the RMS estimate carries no partial-cycle (spectral leakage) error.
+// A fixed sample count cannot guarantee that: the real per-sample period is
+// CT_SAMPLE_SPACING_US *plus* however long analogRead() takes (~10-12 us on
+// ESP32), which silently stretched the old 1000-sample window to ~1.6 cycles
+// and under-reported current by roughly 5%.
+constexpr uint32_t CT_SAMPLE_WINDOW_US = 100000; // 100 ms
+constexpr int CT_SAMPLE_SPACING_US = 20;         // target spacing; actual is this + ADC time
 
 constexpr float CURRENT_LIMIT_A = 15.0f; // most EU household circuits
 constexpr float GRID_VOLTAGE_V = 230.0f; // assumed nominal — no voltage sensing hardware yet

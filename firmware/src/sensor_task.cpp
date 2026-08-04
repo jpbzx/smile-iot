@@ -4,7 +4,8 @@
 
 namespace {
 
-// Samples the SCT-013 for one AC-cycle window and returns RMS current in Amps.
+// Samples the SCT-013 over a whole number of mains cycles and returns RMS
+// current in Amps.
 //
 // The ADC gives raw counts centered on a ~1.65V DC bias (mid-rail from the
 // resistor divider). We compute the RMS of the AC component in counts, then
@@ -12,19 +13,34 @@ namespace {
 // CT's current-per-volt calibration factor -- skipping that conversion was
 // the bug in the original implementation (it applied the calibration factor
 // directly to raw ADC counts).
+//
+// The window is closed on elapsed microseconds rather than after a fixed
+// number of samples. RMS over a partial cycle is biased (spectral leakage),
+// and a sample count only pins down the window length if you know exactly how
+// long one analogRead() takes -- which is board- and core-dependent. Timing it
+// makes the cycle count exact no matter what the ADC costs. See
+// CT_SAMPLE_WINDOW_US in config.h.
 float readCurrentRms() {
-    long sum = 0;
+    double sum = 0.0;
     double sumSquared = 0.0;
+    uint32_t sampleCount = 0;
 
-    for (int i = 0; i < CT_SAMPLE_COUNT; i++) {
+    // Unsigned subtraction, so this stays correct across micros() rollover (~71 min).
+    const uint32_t startUs = micros();
+    do {
         int sample = analogRead(SCT_PIN);
         sum += sample;
         sumSquared += static_cast<double>(sample) * sample;
+        sampleCount++;
         delayMicroseconds(CT_SAMPLE_SPACING_US);
+    } while ((micros() - startUs) < CT_SAMPLE_WINDOW_US);
+
+    if (sampleCount == 0) {
+        return 0.0f; // unreachable in practice; guards the divisions below
     }
 
-    double mean = static_cast<double>(sum) / CT_SAMPLE_COUNT;
-    double meanOfSquares = sumSquared / CT_SAMPLE_COUNT;
+    double mean = sum / sampleCount;
+    double meanOfSquares = sumSquared / sampleCount;
     double variance = meanOfSquares - (mean * mean);
     if (variance < 0.0) {
         variance = 0.0;
@@ -47,6 +63,12 @@ void sensorTask(void *pvParameters) {
     digitalWrite(RELAY_PIN, LOW);
     digitalWrite(LED_PIN, LOW);
     analogReadResolution(ADC_RESOLUTION_BITS);
+    // Stated explicitly rather than inherited from the core's default: the
+    // counts->volts conversion below assumes a full-scale of ADC_VREF, and
+    // 11 dB is the only attenuation that spans the full 0-3.3V the biased
+    // sensor signal needs. (Individual ESP32s still vary by a few percent
+    // here, so a calibration pass against a known load is worthwhile.)
+    analogSetAttenuation(ADC_11db);
 
     bool relayOn = false;
     bool tripLatched = false;
