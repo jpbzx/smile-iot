@@ -18,14 +18,17 @@ ESP32 ⇄ Mosquitto ← ingest worker → InfluxDB ← Flask API ← React SPA (
 
 The **ingest worker** subscribes to `smile-iot/power` 24/7 and batch-writes readings
 to InfluxDB — telemetry is archived whether or not anyone has the dashboard open.
-The **API** reads InfluxDB/PostgreSQL and publishes relay commands (`ON`/`OFF`/`RESET`)
-to `smile-iot/command`; the browser never touches MQTT.
+It also **derives** `power_W = current_A × grid voltage` and stores that voltage,
+rather than trusting the firmware's values: the device has no voltage sensor, so grid
+voltage is an admin-configurable setting (Postgres `app_settings`), editable from the
+Admin page without reflashing. The **API** reads InfluxDB/PostgreSQL and publishes relay
+commands (`ON`/`OFF`/`RESET`) to `smile-iot/command`; the browser never touches MQTT.
 
 | Path | What it is |
 |---|---|
 | `backend/app.py` | Flask app factory (`python -m backend.app`, :5000) |
 | `backend/config.py` | The only module that reads `.env` |
-| `backend/api/` | Blueprints: auth, users, telemetry, control, system |
+| `backend/api/` | Blueprints: auth, users, telemetry, control, settings, system |
 | `backend/services/` | postgres (auth/lockout/audit), influx (reads), mqtt_publisher, emailer |
 | `backend/ingest/worker.py` | MQTT→InfluxDB worker (`python -m backend.ingest.worker`) |
 | `backend/scripts/init_db.py` | One-time schema + seed admin |

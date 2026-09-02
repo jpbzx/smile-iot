@@ -17,6 +17,11 @@ Design notes:
 - outlet_state / trip_latched are FIELDS (not tags): one series per
   device, and last()+pivot on the read side yields a single row.
 - Malformed payloads are logged, not silently dropped.
+- power_W / voltage_V are DERIVED here, not trusted from the payload: the
+  device has no voltage sensor, so the firmware's values are advisory. We
+  recompute power_W = current_A × the admin-configured grid voltage (Postgres,
+  TTL-cached below) and store that voltage — so a change of mains voltage takes
+  effect without reflashing. Only current_A is required from the payload.
 
 Run (from software/):  python -m backend.ingest.worker
 """
@@ -33,24 +38,52 @@ from influxdb_client.client.write_api import WriteOptions
 from paho.mqtt.client import CallbackAPIVersion
 
 from backend import config
+from backend.services import postgres
 
 log = logging.getLogger("ingest")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
-REQUIRED_NUMERIC = ("current_A", "power_W", "voltage_V")
+# power_W / voltage_V are derived from this; only current_A must be present.
+VOLTAGE_CACHE_TTL_S = 30.0
+
+
+class _VoltageCache:
+    """The configured grid voltage, refreshed from Postgres at most once per
+    TTL. ingest and the API are separate processes, so the DB is the only
+    channel — polling here means an admin change lands within ~TTL seconds.
+    On a DB error we keep the last known value so telemetry keeps archiving."""
+
+    def __init__(self):
+        self._value = config.DEFAULT_GRID_VOLTAGE_V
+        self._fetched_at = 0.0
+
+    def get(self) -> float:
+        now = time.monotonic()
+        if now - self._fetched_at >= VOLTAGE_CACHE_TTL_S:
+            try:
+                self._value = postgres.get_grid_voltage()
+            except Exception as exc:  # never let a DB blip stop ingestion
+                log.warning("Grid-voltage refresh failed, keeping %.1f V (%s)", self._value, exc)
+            self._fetched_at = now
+        return self._value
+
+
+_voltage = _VoltageCache()
 
 
 def build_point(payload: dict) -> Point:
-    point = (
+    current_a = float(payload["current_A"])
+    grid_v = _voltage.get()
+    return (
         Point(config.INFLUX_MEASUREMENT)
         .tag("device", payload.get("mac", config.DEFAULT_DEVICE_TAG))
         .time(time.time_ns())
+        .field("current_A", current_a)
+        .field("power_W", current_a * grid_v)   # derived, not trusted from firmware
+        .field("voltage_V", grid_v)             # the configured value, not a measurement
+        .field("outlet_state", str(payload.get("outlet_state", "UNKNOWN")))
+        .field("trip_latched", 1 if payload.get("trip_latched") else 0)
     )
-    for field in REQUIRED_NUMERIC:
-        point = point.field(field, float(payload[field]))
-    point = point.field("outlet_state", str(payload.get("outlet_state", "UNKNOWN")))
-    point = point.field("trip_latched", 1 if payload.get("trip_latched") else 0)
-    return point
 
 
 class IngestWorker:

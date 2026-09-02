@@ -12,7 +12,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
 from backend import config
-from backend.api import auth, control, system, telemetry, users
+from backend.api import auth, control, settings, system, telemetry, users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -59,6 +59,7 @@ def create_app() -> Flask:
     app.register_blueprint(users.bp, url_prefix="/api/users")
     app.register_blueprint(telemetry.bp, url_prefix="/api/telemetry")
     app.register_blueprint(control.bp, url_prefix="/api/control")
+    app.register_blueprint(settings.bp, url_prefix="/api/settings")
     return app
 
 
